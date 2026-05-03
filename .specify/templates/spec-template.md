@@ -1,73 +1,128 @@
-# [Feature title]
+# Feature Specification: [FEATURE NAME]
 
-> [One-sentence summary of what this feature does and why it matters]
+**Feature Branch**: `[###-feature-name]`  
+**Created**: [DATE]  
+**Status**: Draft  
+**Input**: User description: "$ARGUMENTS"
 
-| | |
-|---|---|
-| **Status** | draft |
-| **Tier** | [1 (tiny) / 2 (small) / 3 (substantial) / 4 (major)] |
-| **Branch** | `feat/[feature-name]` (to be created) |
-| **Author** | Cernita team |
-| **Drafted** | [date] |
-| **Last updated** | [date] |
-| **Constitution principles** | [List which principles this feature serves] |
-| **Supersedes** | [none / link to replaced spec] |
-| **Depends on** | [none / list of prerequisite specs] |
+## User Scenarios & Testing *(mandatory)*
+
+<!--
+  IMPORTANT: User stories should be PRIORITIZED as user journeys ordered by importance.
+  Each user story/journey must be INDEPENDENTLY TESTABLE - meaning if you implement just ONE of them,
+  you should still have a viable MVP (Minimum Viable Product) that delivers value.
+  
+  Assign priorities (P1, P2, P3, etc.) to each story, where P1 is the most critical.
+  Think of each story as a standalone slice of functionality that can be:
+  - Developed independently
+  - Tested independently
+  - Deployed independently
+  - Demonstrated to users independently
+-->
+
+### User Story 1 - [Brief Title] (Priority: P1)
+
+[Describe this user journey in plain language]
+
+**Why this priority**: [Explain the value and why it has this priority level]
+
+**Independent Test**: [Describe how this can be tested independently - e.g., "Can be fully tested by [specific action] and delivers [specific value]"]
+
+**Acceptance Scenarios**:
+
+1. **Given** [initial state], **When** [action], **Then** [expected outcome]
+2. **Given** [initial state], **When** [action], **Then** [expected outcome]
 
 ---
 
-## Problem
+### User Story 2 - [Brief Title] (Priority: P2)
 
-[What's wrong today? What can't the user do? What's the cost of inaction?]
+[Describe this user journey in plain language]
 
-[Include 2-3 concrete scenarios that illustrate the problem.]
+**Why this priority**: [Explain the value and why it has this priority level]
 
-## Why now
+**Independent Test**: [Describe how this can be tested independently]
 
-[Why is this the right time to address this? What makes it more urgent than other work?]
+**Acceptance Scenarios**:
 
-## User story
+1. **Given** [initial state], **When** [action], **Then** [expected outcome]
 
-> As one of the two people doing this move, I want [goal] so that [benefit].
->
-> [Describe the experience in the user's voice — what they see, what they do, what they feel.]
+---
 
-## Acceptance criteria
+### User Story 3 - [Brief Title] (Priority: P3)
 
-- [ ] **AC1** [First acceptance criterion — specific, testable, binary]
-- [ ] **AC2** [Second acceptance criterion]
-- [ ] **AC3** [Continue as needed]
+[Describe this user journey in plain language]
 
-## Data model changes
+**Why this priority**: [Explain the value and why it has this priority level]
 
-[SQL migrations, new columns, new tables. If none, state "None."]
+**Independent Test**: [Describe how this can be tested independently]
 
-## UI states
+**Acceptance Scenarios**:
 
-### State A — [Description]
-[What the user sees in this state. Include ASCII mockup if helpful.]
+1. **Given** [initial state], **When** [action], **Then** [expected outcome]
 
-### State B — [Description]
-[Next state.]
+---
 
-## Edge cases
+[Add more user stories as needed, each with an assigned priority]
 
-- **EC1** [Edge case description] → [How it's handled]
-- **EC2** [Continue as needed]
+### Edge Cases
 
-## Out of scope
+<!--
+  ACTION REQUIRED: The content in this section represents placeholders.
+  Fill them out with the right edge cases.
+-->
 
-- **[Topic].** [Why it's out of scope / separate spec]
+- What happens when [boundary condition]?
+- How does system handle [error scenario]?
 
-## Open questions
+## Requirements *(mandatory)*
 
-- **Q1:** [Question]
-  **A:** [Answer, or "Unresolved — blocks implementation"]
+<!--
+  ACTION REQUIRED: The content in this section represents placeholders.
+  Fill them out with the right functional requirements.
+-->
 
-## References
+### Functional Requirements
 
-- [Constitution principles, related specs, external documentation]
+- **FR-001**: System MUST [specific capability, e.g., "allow users to create accounts"]
+- **FR-002**: System MUST [specific capability, e.g., "validate email addresses"]  
+- **FR-003**: Users MUST be able to [key interaction, e.g., "reset their password"]
+- **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
+- **FR-005**: System MUST [behavior, e.g., "log all security events"]
 
-## Implementation notes
+*Example of marking unclear requirements:*
 
-[Technical guidance for the implementer. Not binding — the spec is. These are hints.]
+- **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
+- **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
+
+### Key Entities *(include if feature involves data)*
+
+- **[Entity 1]**: [What it represents, key attributes without implementation]
+- **[Entity 2]**: [What it represents, relationships to other entities]
+
+## Success Criteria *(mandatory)*
+
+<!--
+  ACTION REQUIRED: Define measurable success criteria.
+  These must be technology-agnostic and measurable.
+-->
+
+### Measurable Outcomes
+
+- **SC-001**: [Measurable metric, e.g., "Users can complete account creation in under 2 minutes"]
+- **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
+- **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
+- **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+
+## Assumptions
+
+<!--
+  ACTION REQUIRED: The content in this section represents placeholders.
+  Fill them out with the right assumptions based on reasonable defaults
+  chosen when the feature description did not specify certain details.
+-->
+
+- [Assumption about target users, e.g., "Users have stable internet connectivity"]
+- [Assumption about scope boundaries, e.g., "Mobile support is out of scope for v1"]
+- [Assumption about data/environment, e.g., "Existing authentication system will be reused"]
+- [Dependency on existing system/service, e.g., "Requires access to the existing user profile API"]

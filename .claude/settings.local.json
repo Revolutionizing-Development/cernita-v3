@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(export PATH=\"$PATH:/c/Users/boude/.local/bin\")",
+      "Bash(PYTHONUTF8=1 PYTHONIOENCODING=utf-8 NO_COLOR=1 uvx --from \"git+https://github.com/github/spec-kit.git@v0.8.4\" specify init . --ai claude --force --no-git --offline --ignore-agent-tools --script ps)"
+    ]
+  }
+}
