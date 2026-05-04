@@ -1,5 +1,8 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
+// Browser singleton using @supabase/ssr — sessions stored in cookies,
+// not localStorage. Token refresh handled automatically by middleware.ts.
 let _supabase: SupabaseClient | null = null
 
 export function getSupabase(): SupabaseClient {
@@ -12,15 +15,14 @@ export function getSupabase(): SupabaseClient {
         'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.'
       )
     }
-    _supabase = createClient(url, key)
+    _supabase = createBrowserClient(url, key)
   }
   return _supabase
 }
 
-// Convenience proxy — used in components that import { supabase }
-// Works at runtime (browser + server handler); never evaluated during static build.
+// Lazy proxy — safe during static build; initialises on first runtime access.
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
-    return getSupabase()[prop as keyof SupabaseClient]
+    return Reflect.get(getSupabase(), prop)
   },
 })
