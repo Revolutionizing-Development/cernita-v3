@@ -12,7 +12,7 @@
 | **Last updated** | 2026-04-27 |
 | **Constitution principles** | Principle 1 (user owns the decision); Principle 2 (honest math — weight tracking is honest physics); Principle 4 (two people, one truth — both partners see real-time location); Principle 9 (safety — weight overload causes real damage); Principle 11 (bilingual — locations have Italian names); Principle 12 (compliance — ocean freight has real weight limits) |
 | **Supersedes** | none |
-| **Depends on** | bilingual item names (shipped); bilingual rationale (shipped); rule versioning system (shipped) |
+| **Depends on** | spec 009 (authentication — RLS uses auth.uid()); bilingual item names (shipped); bilingual rationale (shipped); rule versioning system (shipped) |
 
 ---
 
@@ -60,10 +60,10 @@ Three reasons this is the right next major feature:
 
 ### Schema and data model
 
-- [ ] **AC1** A new `cernita_boxes` table is created in Supabase, with columns: `id`, `box_number` (e.g., "BOX-007"), `household_id`, `destination` (KEEP-ITALY, etc.), `current_location_id`, `notes`, `notes_it`, `created_at`, `closed_at` (nullable; set when the box is sealed/marked done).
+- [ ] **AC1** A new `cernita_boxes` table is created in Supabase, with columns: `id`, `box_number` (e.g., "BOX-007"), `destination` (KEEP-ITALY, etc.), `current_location_id`, `notes`, `notes_it`, `created_at`, `closed_at` (nullable; set when the box is sealed/marked done). No `household_id` — single-tenant deployment per spec 009.
 - [ ] **AC2** `cernita_entries` gains a `box_id` column (nullable foreign key to `cernita_boxes.id`). An item with `box_id = null` is "unboxed" — either a large individually-tracked item or a not-yet-packed item.
 - [ ] **AC3** `cernita_entries` gains a `current_location_id` column (used only when `box_id` is null — for large items individually tracked).
-- [ ] **AC4** A new `cernita_locations` table stores location values, with columns: `id`, `household_id`, `name`, `name_it`, `is_default`, `sort_order`. Default locations are seeded on first use of the feature: Galesburg house, Galesburg storage, Texas rental, In transit, Italy port, Italy house, Sold, Donated, Disposed.
+- [ ] **AC4** A new `cernita_locations` table stores location values, with columns: `id`, `name`, `name_it`, `is_default`, `sort_order`. No `household_id`. Default locations are seeded on first use of the feature: Galesburg house, Galesburg storage, Texas rental, In transit, Italy port, Italy house, Sold, Donated, Disposed.
 
 ### Box management UI
 
@@ -114,23 +114,22 @@ Three reasons this is the right next major feature:
 ```sql
 -- Migration 2f: physical location tracking
 -- Adds boxes table, locations table, plus columns on entries.
+-- No household_id — single-tenant deployment per spec 009.
 
 create table if not exists cernita_locations (
   id bigserial primary key,
-  household_id text not null,
   name text not null,
   name_it text,
   is_default boolean default false,
   sort_order integer default 100,
   created_at timestamptz default now()
 );
-create index if not exists idx_cernita_locations_household
-  on cernita_locations (household_id, sort_order);
+create index if not exists idx_cernita_locations_sort
+  on cernita_locations (sort_order);
 
 create table if not exists cernita_boxes (
   id bigserial primary key,
-  household_id text not null,
-  box_number text not null,
+  box_number text not null unique,
   destination text not null,
   current_location_id bigint references cernita_locations(id),
   notes text,
@@ -138,30 +137,26 @@ create table if not exists cernita_boxes (
   closed_at timestamptz,
   created_at timestamptz default now()
 );
-create index if not exists idx_cernita_boxes_household_loc
-  on cernita_boxes (household_id, current_location_id);
-create unique index if not exists idx_cernita_boxes_household_number
-  on cernita_boxes (household_id, box_number);
+create index if not exists idx_cernita_boxes_location
+  on cernita_boxes (current_location_id);
 
 alter table cernita_entries
   add column if not exists box_id bigint references cernita_boxes(id),
   add column if not exists current_location_id bigint references cernita_locations(id);
 
 create index if not exists idx_cernita_entries_box
-  on cernita_entries (household_id, box_id);
+  on cernita_entries (box_id);
 
 alter table cernita_locations enable row level security;
 alter table cernita_boxes enable row level security;
 
-create policy "anon read" on cernita_locations for select using (true);
-create policy "anon insert" on cernita_locations for insert with check (true);
-create policy "anon update" on cernita_locations for update using (true);
-create policy "anon delete" on cernita_locations for delete using (true);
+create policy "authenticated_access" on cernita_locations
+  for all using (auth.uid() is not null)
+  with check (auth.uid() is not null);
 
-create policy "anon read" on cernita_boxes for select using (true);
-create policy "anon insert" on cernita_boxes for insert with check (true);
-create policy "anon update" on cernita_boxes for update using (true);
-create policy "anon delete" on cernita_boxes for delete using (true);
+create policy "authenticated_access" on cernita_boxes
+  for all using (auth.uid() is not null)
+  with check (auth.uid() is not null);
 ```
 
 The existing `bin_id` column stays untouched. It continues to represent destination grouping. The new `box_id` is for physical tracking. They coexist.
@@ -299,13 +294,13 @@ This Tier 3 spec ships in three commits:
 
 ### Default locations seed
 
-Seeded automatically the first time the user opens Locations management UI or first creates a box. Detection: `select count(*) from cernita_locations where household_id = ?` returns 0 → seed. Idempotent.
+Seeded automatically the first time the user opens Locations management UI or first creates a box. Detection: `select count(*) from cernita_locations` returns 0 → seed. Idempotent.
 
 ### Box numbering function
 
 ```javascript
-async function nextBoxNumber(householdId) {
-  // Select existing box_numbers for household, parse "BOX-NNN", find max, increment
+async function nextBoxNumber() {
+  // Select all existing box_numbers, parse "BOX-NNN", find max, increment
   // Return zero-padded "BOX-NNN+1"
 }
 ```

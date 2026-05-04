@@ -12,7 +12,7 @@
 | **Last updated** | 2026-04-27 |
 | **Constitution principles** | Principle 1 (user owns the decision); Principle 2 (honest math — airline limits are real); Principle 4 (two people, one truth — both partners see trip plans); Principle 5 (decisions are versioned, not frozen — but executed trips ARE frozen by design); Principle 9 (safety — airline overweight surcharges are real); Principle 11 (bilingual — trips have Italian labels); Principle 12 (compliance — different airlines have different allowances) |
 | **Supersedes** | none |
-| **Depends on** | `/specs/location-tracking.md` (must ship first — trips operate on boxes/items that have a location); bilingual item names (shipped); bilingual rationale (shipped) |
+| **Depends on** | spec 009 (authentication — RLS uses auth.uid()); spec 006 (location-tracking — must ship first); bilingual item names (shipped); bilingual rationale (shipped) |
 
 ---
 
@@ -61,7 +61,7 @@ Three reasons:
 
 ### Schema
 
-- [ ] **AC1** A new `cernita_trips` table is created with columns: `id`, `household_id`, `name`, `name_it`, `traveler_name`, `origin_location_id`, `destination_location_id`, `departure_date`, `return_date` (nullable for one-way trips), `status` (planned / packing / executed / canceled), `executed_at`, `notes`, `notes_it`, `created_at`.
+- [ ] **AC1** A new `cernita_trips` table is created with columns: `id`, `name`, `name_it`, `traveler_name`, `origin_location_id`, `destination_location_id`, `departure_date`, `return_date` (nullable for one-way trips), `status` (planned / packing / executed / canceled), `executed_at`, `notes`, `notes_it`, `created_at`. No `household_id` — single-tenant deployment per spec 009.
 
 - [ ] **AC2** The existing `cernita_boxes` table (from location-tracking spec) gains four columns: `box_type` ('cardboard' | 'suitcase'), `trip_id` (nullable foreign key to `cernita_trips.id`), `suitcase_class` ('checked' | 'carry_on' | 'personal_item' — null for cardboard boxes), `weight_limit_lb` (nullable; numeric override of default thresholds for this specific box).
 
@@ -136,10 +136,10 @@ Three reasons:
 ```sql
 -- Migration 2g: trips and suitcases
 -- Adds trips table; extends boxes table with box_type, trip_id, suitcase_class, weight_limit_lb.
+-- No household_id — single-tenant deployment per spec 009.
 
 create table if not exists cernita_trips (
   id bigserial primary key,
-  household_id text not null,
   name text not null,
   name_it text,
   traveler_name text not null,
@@ -154,8 +154,8 @@ create table if not exists cernita_trips (
   notes_it text,
   created_at timestamptz default now()
 );
-create index if not exists idx_cernita_trips_household_status
-  on cernita_trips (household_id, status, departure_date);
+create index if not exists idx_cernita_trips_status_date
+  on cernita_trips (status, departure_date);
 
 alter table cernita_boxes
   add column if not exists box_type text default 'cardboard'
@@ -171,13 +171,12 @@ alter table cernita_boxes
     check (box_type != 'suitcase' or (trip_id is not null and suitcase_class is not null));
 
 create index if not exists idx_cernita_boxes_trip
-  on cernita_boxes (household_id, trip_id);
+  on cernita_boxes (trip_id);
 
 alter table cernita_trips enable row level security;
-create policy "anon read" on cernita_trips for select using (true);
-create policy "anon insert" on cernita_trips for insert with check (true);
-create policy "anon update" on cernita_trips for update using (true);
-create policy "anon delete" on cernita_trips for delete using (true);
+create policy "authenticated_access" on cernita_trips
+  for all using (auth.uid() is not null)
+  with check (auth.uid() is not null);
 ```
 
 The existing `cernita_boxes` table is extended, not replaced. Cardboard boxes (the existing concept) get `box_type = 'cardboard'` as default. Suitcases are a new variant with required `trip_id` and `suitcase_class`.
