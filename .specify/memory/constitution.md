@@ -2,7 +2,7 @@
 
 > *La cernita.* The sorting. What comes, what stays, what goes.
 
-Version 1.4 · drafted April 27, 2026 · revised April 28, 2026
+Version 1.5 · drafted April 27, 2026 · revised May 3, 2026
 
 ---
 
@@ -44,16 +44,17 @@ Recommendations must be derived from real numbers, computed transparently. No ru
 
 ---
 
-## Principle 3 — The data lives with the user
+## Principle 3 — The data belongs to the user
 
-Cernita is a tool, not a service. The user's belongings list, photos, decisions, notes, and call transcripts live in **the user's own Supabase project**. Anthropic, Bland, and any other API the app uses are accessed with **the user's own API keys**.
+Cernita is a tool, not a platform. The user's belongings list, photos, decisions, notes, and transcripts are theirs — portable, exportable, and deletable. The backend manages infrastructure on the user's behalf so neither partner needs to understand the plumbing.
 
 **In practice:**
-- No data is sent to a Cernita-owned backend (there isn't one)
 - The user can export everything as CSV at any time
-- The user can delete their database and Cernita stops working — this is correct
-- Future hosted variants must preserve user data ownership as a primary value
-- API keys remain under user control; if backend proxying is added, it is opt-in
+- The user can request full data deletion and Cernita stops working — this is correct
+- Database credentials, API keys, and service configuration live server-side, never in the frontend
+- Authentication is a normal login screen, not a configuration step
+- No user-facing field ever exposes a database URL, API key, or infrastructure detail
+- If Cernita disappears, the data export remains useful on its own
 
 ---
 
@@ -202,6 +203,7 @@ If a future change requires violating a principle here, the right move is to **p
 
 ## Amendment log
 
+- **v1.5** (May 3, 2026) — Principle 3 rewritten from "data lives with the user" to "data belongs to the user". Separates data sovereignty (real value: portable, exportable, deletable) from user-managed infrastructure (implementation detail that harmed the non-technical partner). Backend now manages database connection and API keys server-side; authentication is a normal login screen. Implements amendment proposal 002.
 - **v1.4** (April 28, 2026) — Added Principle 13: preservation is part of the math. Items deteriorate in storage and transit; honest decisions account for that survival probability. The AI flags risk in the rationale, surfaces required packing precautions, and lowers confidence when survival is in doubt. The user retains final authority. Implements amendment proposal 001.
 - **v1.3** (April 27, 2026) — Added Principle 12: outputs submitted to authorities, insurers, or service providers at the destination must conform to those entities' actual format requirements. Captures Italian customs forms, insurance manifests, moving company inventories, and future destination paperwork. Authoritative format specs live in `/specs/standards/`.
 - **v1.2** (April 27, 2026) — Principle 6 reframed from "Italian editorial aesthetic" (specific implementation) to "Intentional design over default design" (underlying value). Added Principle 11: bilingual output (English + Italian) required for all permanent records — driven by Italian customs, insurance, and port-handling needs at the final destination.
