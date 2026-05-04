@@ -1,0 +1,161 @@
+import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react'
+import { Session, User } from '@supabase/supabase-js'
+import { supabase } from './supabase'
+import { Entry, CernitaSettings, DEFAULT_SETTINGS } from './types'
+
+// ─── State ───────────────────────────────────────────────────────────────────
+
+export type SyncStatus = 'online' | 'syncing' | 'offline'
+
+export interface AppState {
+  session: Session | null
+  user: User | null
+  log: Entry[]
+  syncStatus: SyncStatus
+  settings: CernitaSettings
+}
+
+const initialState: AppState = {
+  session: null,
+  user: null,
+  log: [],
+  syncStatus: 'offline',
+  settings: DEFAULT_SETTINGS,
+}
+
+// ─── Actions ─────────────────────────────────────────────────────────────────
+
+type Action =
+  | { type: 'SET_SESSION'; session: Session | null; user: User | null }
+  | { type: 'SET_LOG'; entries: Entry[] }
+  | { type: 'UPSERT_ENTRY'; entry: Entry }
+  | { type: 'DELETE_ENTRY'; id: number }
+  | { type: 'SET_SYNC'; status: SyncStatus }
+  | { type: 'SET_SETTINGS'; settings: CernitaSettings }
+
+function reducer(state: AppState, action: Action): AppState {
+  switch (action.type) {
+    case 'SET_SESSION':
+      return { ...state, session: action.session, user: action.user }
+    case 'SET_LOG':
+      return { ...state, log: action.entries }
+    case 'UPSERT_ENTRY': {
+      const exists = state.log.some(e => e.id === action.entry.id)
+      return {
+        ...state,
+        log: exists
+          ? state.log.map(e => e.id === action.entry.id ? action.entry : e)
+          : [action.entry, ...state.log],
+      }
+    }
+    case 'DELETE_ENTRY':
+      return { ...state, log: state.log.filter(e => e.id !== action.id) }
+    case 'SET_SYNC':
+      return { ...state, syncStatus: action.status }
+    case 'SET_SETTINGS':
+      return { ...state, settings: action.settings }
+    default:
+      return state
+  }
+}
+
+// ─── Context ─────────────────────────────────────────────────────────────────
+
+interface AppContextValue {
+  state: AppState
+  dispatch: React.Dispatch<Action>
+}
+
+const AppContext = createContext<AppContextValue | null>(null)
+
+export function useApp() {
+  const ctx = useContext(AppContext)
+  if (!ctx) throw new Error('useApp must be used within AppProvider')
+  return ctx
+}
+
+// ─── Provider ────────────────────────────────────────────────────────────────
+
+function loadSettings(): CernitaSettings {
+  if (typeof window === 'undefined') return DEFAULT_SETTINGS
+  try {
+    const raw = localStorage.getItem('cernita_settings')
+    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
+  } catch {}
+  return DEFAULT_SETTINGS
+}
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(reducer, {
+    ...initialState,
+    settings: loadSettings(),
+  })
+
+  // Auth state listener
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        dispatch({ type: 'SET_SESSION', session, user: session?.user ?? null })
+        if (session) {
+          await loadAll(dispatch)
+          setupRealtime(dispatch)
+        }
+      }
+    )
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Persist settings changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cernita_settings', JSON.stringify(state.settings))
+    }
+  }, [state.settings])
+
+  return (
+    <AppContext.Provider value={{ state, dispatch }}>
+      {children}
+    </AppContext.Provider>
+  )
+}
+
+// ─── Data loading ─────────────────────────────────────────────────────────────
+
+async function loadAll(dispatch: React.Dispatch<Action>) {
+  dispatch({ type: 'SET_SYNC', status: 'syncing' })
+  const { data, error } = await supabase
+    .from('cernita_entries')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (!error && data) {
+    dispatch({ type: 'SET_LOG', entries: data as Entry[] })
+  }
+  dispatch({ type: 'SET_SYNC', status: 'online' })
+}
+
+let realtimeChannel: ReturnType<typeof supabase.channel> | null = null
+
+function setupRealtime(dispatch: React.Dispatch<Action>) {
+  if (realtimeChannel) realtimeChannel.unsubscribe()
+
+  realtimeChannel = supabase
+    .channel('cernita-sync')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'cernita_entries' },
+      (payload) => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          dispatch({ type: 'UPSERT_ENTRY', entry: payload.new as Entry })
+        } else if (payload.eventType === 'DELETE') {
+          dispatch({ type: 'DELETE_ENTRY', id: (payload.old as { id: number }).id })
+        }
+      }
+    )
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') dispatch({ type: 'SET_SYNC', status: 'online' })
+      else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+        dispatch({ type: 'SET_SYNC', status: 'offline' })
+      }
+    })
+}
