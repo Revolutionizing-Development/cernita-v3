@@ -52,7 +52,7 @@ const VALID_DESTINATIONS: Decision[] = [
 
 export default function BinsPage() {
   const { state, dispatch } = useApp()
-  const { boxes, locations, log, settings } = state
+  const { boxes, locations, log, settings, syncStatus } = state
 
   const [view, setView] = useState<'location' | 'destination'>('location')
   const [selectedBox, setSelectedBox] = useState<Box | null>(null)
@@ -72,7 +72,8 @@ export default function BinsPage() {
     }
   }
 
-  const migrationNeeded = locations.length === 0 && boxes.length === 0
+  // Only show migration banner after data has loaded — not during initial sync
+  const migrationNeeded = syncStatus === 'online' && locations.length === 0 && boxes.length === 0
 
   return (
     <AuthGuard>
@@ -104,6 +105,13 @@ export default function BinsPage() {
 
         <div className="page-content">
 
+          {/* Loading state */}
+          {syncStatus === 'syncing' && boxes.length === 0 && (
+            <p className="settings-hint" style={{ padding: '20px 0', textAlign: 'center' }}>
+              Loading… · Caricamento…
+            </p>
+          )}
+
           {/* Migration needed banner */}
           {migrationNeeded && (
             <div className="migration-banner">
@@ -111,8 +119,15 @@ export default function BinsPage() {
               <p className="migration-body">
                 Open <strong>Supabase → SQL Editor</strong> and run the contents of{' '}
                 <code>docs/migration-006-boxes-locations.sql</code> from the repo.
-                Then reload the app.
+                Then reload.
               </p>
+              <button
+                className="btn-secondary"
+                style={{ marginTop: 12, width: '100%' }}
+                onClick={() => window.location.reload()}
+              >
+                Reload · Ricarica
+              </button>
             </div>
           )}
 
