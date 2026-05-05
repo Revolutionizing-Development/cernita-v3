@@ -39,11 +39,14 @@ SHIPPING RESTRICTION RULES — assess international ocean-freight restrictions c
 
 MODEL IDENTIFICATION — inspect the photo and description carefully for brand markings, model numbers, labels, or serial tags. Identifying the exact model significantly improves resale and replacement cost accuracy. Examples: "DeWalt DCS570B 7-1/4 in. Circular Saw", "KitchenAid KSM150PSER Artisan 5-Qt Stand Mixer", "Apple MacBook Pro 14-inch M3 Pro 18GB". Set to null if the item has no meaningful model (e.g. generic towels, loose books, handmade items).
 
+OVERSIZED ITEMS — set "oversized": true for any item that physically cannot fit inside a standard 27-gallon plastic moving box (roughly 24" × 16" × 12"). Examples: rugs, rolled carpets, sofas, armchairs, bed frames, large mirrors, bicycles, golf bags, surfboards, rolled canvases larger than ~20"×30", standing lamps, large potted plants, kayaks. Standard household items that fit in a box (even if heavy) should be false.
+
 Evaluate this item and return a JSON object with these fields:
 {
   "item_name": "English name",
   "item_name_it": "Italian name",
   "item_model": "Brand + model name/number string, or null",
+  "oversized": true or false,
   "final_decision": one of KEEP-ITALY|KEEP-US|SELL|DONATE|DISPOSE|GIVE-FAMILY|NEEDS-HUMAN,
   "estimated_resale_value": number or null,
   "replacement_cost": number or null,

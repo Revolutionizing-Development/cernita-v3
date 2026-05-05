@@ -1891,6 +1891,33 @@ body {
 .badge-hazmat      { font-size: 14px; line-height: 1; }
 .badge-hazmat-warn { font-size: 14px; line-height: 1; }
 
+/* Oversized badge in entry row */
+.badge-oversized {
+  display: inline-flex;
+  align-items: center;
+  background: var(--ink-soft);
+  color: var(--paper);
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 2px;
+  font-family: 'Lato', sans-serif;
+  letter-spacing: 0.04em;
+}
+
+/* Oversized note block (in DetailOverlay + saved card) */
+.oversized-note {
+  background: var(--paper-dark);
+  border-left: 3px solid var(--ink-soft);
+  padding: 10px 14px;
+  border-radius: 0 4px 4px 0;
+  margin-bottom: 16px;
+}
+.oversized-note-text {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
 /* ─── Trips page ─────────────────────────────────────────────────────────── */
 
 .trips-section-title {

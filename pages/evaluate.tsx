@@ -43,6 +43,7 @@ interface AiResult {
   shipping_restriction: 'none' | 'restricted' | 'prohibited' | null
   shipping_restriction_note: string | null
   shipping_restriction_note_it: string | null
+  oversized: boolean | null
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -104,6 +105,7 @@ export default function EvaluatePage() {
   // Post-save box prompt state
   const [savedEntryId, setSavedEntryId] = useState<number | null>(null)
   const [savedItemName, setSavedItemName] = useState('')
+  const [savedEntryOversized, setSavedEntryOversized] = useState(false)
   const [packBoxId, setPackBoxId] = useState<number | ''>('')
   const [packing, setPacking] = useState(false)
 
@@ -295,6 +297,7 @@ export default function EvaluatePage() {
       shipping_restriction: aiResult.shipping_restriction ?? null,
       shipping_restriction_note: aiResult.shipping_restriction_note ?? null,
       shipping_restriction_note_it: aiResult.shipping_restriction_note_it ?? null,
+      oversized: aiResult.oversized ?? false,
     }
 
     const { data, error } = await supabase
@@ -326,6 +329,7 @@ export default function EvaluatePage() {
     // Store saved entry for box prompt
     setSavedEntryId(data.id)
     setSavedItemName(savedName)
+    setSavedEntryOversized(aiResult.oversized ?? false)
     setPackBoxId('')
 
     const toast = savedNameIt
@@ -346,6 +350,7 @@ export default function EvaluatePage() {
   function resetToCamera() {
     setSavedEntryId(null)
     setSavedItemName('')
+    setSavedEntryOversized(false)
     setPackBoxId('')
     setPacking(false)
     setToastMsg('')
@@ -521,7 +526,20 @@ export default function EvaluatePage() {
               <h3 className="saved-name serif">{savedItemName}</h3>
               <p className="saved-subtitle italic ink-soft">Salvato con successo</p>
 
-              {boxes.filter((b: Box) => !b.closed_at).length > 0 ? (
+              {savedEntryOversized ? (
+                <div className="oversized-note" style={{ marginTop: 16 }}>
+                  <p className="oversized-note-text">
+                    ◱ Oversized — ships separately · <em>Oggetto di grandi dimensioni, spedizione separata</em>
+                  </p>
+                  <button
+                    className="btn-secondary"
+                    style={{ marginTop: 12, width: '100%' }}
+                    onClick={resetToCamera}
+                  >
+                    Continue · Continua
+                  </button>
+                </div>
+              ) : boxes.filter((b: Box) => !b.closed_at).length > 0 ? (
                 <div className="saved-box-prompt">
                   <p className="box-assign-label">Pack into a box? · Inscatola?</p>
                   <select

@@ -28,6 +28,7 @@ export interface Entry {
   packing_notes: string | null
   packing_notes_it: string | null
   item_model: string | null
+  oversized: boolean | null
   photo_data: string | null
   bin_id: string | null
   box_id: number | null

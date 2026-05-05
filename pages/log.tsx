@@ -334,6 +334,7 @@ function EntryRow({ entry, outdated, onClick }: {
           <div className="entry-badges">
             {outdated && <span className="badge-outdated">⟳</span>}
             {entry.override_reason && <span className="badge-override">↩</span>}
+            {entry.oversized && <span className="badge-oversized">◱</span>}
             {entry.shipping_restriction === 'prohibited' && <span className="badge-hazmat">🚫</span>}
             {entry.shipping_restriction === 'restricted' && <span className="badge-hazmat-warn">⚠️</span>}
             <span className={DECISION_BADGE_CLASS[entry.final_decision as Decision] ?? 'badge'}>
@@ -643,8 +644,14 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
             </div>
           )}
 
-          {/* Box assignment */}
-          {boxes.length > 0 && (
+          {/* Box assignment — hidden for oversized items */}
+          {entry.oversized ? (
+            <div className="oversized-note">
+              <p className="oversized-note-text">
+                ◱ Oversized — ships separately · <em>Oggetto di grandi dimensioni, spedizione separata</em>
+              </p>
+            </div>
+          ) : boxes.length > 0 && (
             <div className="box-assign-section">
               <p className="box-assign-label">Box · Scatola</p>
               {entry.box_id ? (
