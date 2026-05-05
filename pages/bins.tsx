@@ -5,6 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
+import haptic from '../lib/haptic'
 import { Box, Location, Entry, Decision, CernitaSettings, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, STORAGE_REQUIREMENT_LABELS, getDecisionLabel } from '../lib/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -508,14 +509,18 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
 
   async function handleToggleClose() {
     setSaving(true)
+    const sealing = !box.closed_at
     const { data, error: err } = await supabase
       .from('cernita_boxes')
-      .update({ closed_at: box.closed_at ? null : new Date().toISOString() })
+      .update({ closed_at: sealing ? new Date().toISOString() : null })
       .eq('id', box.id)
       .select()
       .single()
     setSaving(false)
-    if (!err && data) onSaved(data as Box)
+    if (!err && data) {
+      if (sealing) haptic.celebrate()
+      onSaved(data as Box)
+    }
   }
 
   async function handleDelete() {

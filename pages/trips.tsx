@@ -5,6 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
+import haptic from '../lib/haptic'
 import {
   Trip, TripStatus, Box, Entry, Location, Decision,
   TRIP_STATUS_LABELS, SUITCASE_CLASS_LABELS,
@@ -313,6 +314,7 @@ function TripDetailOverlay({ trip, boxes, locations, log, settings, onClose, onS
       if (data) onBoxSaved(data as Box)
     }
     await handleStatusChange('executed', { executed_at: new Date().toISOString() })
+    haptic.celebrate()
     showToast(`Trip executed · ${suitcases.length} bag${suitcases.length !== 1 ? 's' : ''} moved`)
   }
 

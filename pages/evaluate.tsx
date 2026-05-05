@@ -5,6 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
+import haptic from '../lib/haptic'
 import { Box, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel } from '../lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -249,6 +250,7 @@ export default function EvaluatePage() {
         }
       }
 
+      haptic.error()
       setPhase('error')
       setErrorMsg(msg)
       setTimeout(() => {
@@ -349,6 +351,7 @@ export default function EvaluatePage() {
       ? `${savedName} · ${savedNameIt} — Saved · Salvato`
       : `${savedName} — Saved · Salvato`
     setToastMsg(toast)
+    haptic.confirm()
     setPhase('saved')
 
     // Auto-reset conditions:

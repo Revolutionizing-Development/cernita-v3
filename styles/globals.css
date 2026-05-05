@@ -3000,3 +3000,230 @@ body {
   margin-top: 2px;
   font-style: italic;
 }
+
+/* ─── Toggle switch ──────────────────────────────────────────────────────── */
+
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-switch input[type="checkbox"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggle-track {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--paper-dark);
+  border: 1px solid rgba(44,44,44,0.15);
+  transition: background 200ms ease, border-color 200ms ease;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 4px rgba(44,44,44,0.25);
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.toggle-switch input:checked ~ .toggle-track {
+  background: var(--olive);
+  border-color: var(--olive);
+}
+
+.toggle-switch input:checked ~ .toggle-track .toggle-thumb {
+  transform: translateX(18px);
+}
+
+/* ─── Keyframes (always defined; triggered only via .motion-enabled) ───────── */
+
+@keyframes cernita-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+@keyframes cernita-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes cernita-slide-in-bottom {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes cernita-scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+@keyframes cernita-pulse {
+  0%, 100% { opacity: 1;   }
+  50%       { opacity: 0.4; }
+}
+
+@keyframes cernita-bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes cernita-toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes cernita-save-pop {
+  0%   { opacity: 0; transform: scale(0.7) rotate(-8deg); }
+  60%  { opacity: 1; transform: scale(1.15) rotate(3deg); }
+  100% { opacity: 1; transform: scale(1)    rotate(0deg); }
+}
+
+/* ─── Motion-enabled — Spring-back on interactive elements ─────────────────── */
+
+.motion-enabled .btn-primary,
+.motion-enabled .btn-secondary,
+.motion-enabled .btn-destructive,
+.motion-enabled .filter-pill,
+.motion-enabled .nav-item,
+.motion-enabled .entry-row,
+.motion-enabled .box-card,
+.motion-enabled .trip-card,
+.motion-enabled .suitcase-card {
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 220ms ease;
+}
+
+.motion-enabled .btn-primary:active,
+.motion-enabled .btn-secondary:active,
+.motion-enabled .btn-destructive:active,
+.motion-enabled .filter-pill:active,
+.motion-enabled .nav-item:active,
+.motion-enabled .entry-row:active,
+.motion-enabled .box-card:active,
+.motion-enabled .trip-card:active,
+.motion-enabled .suitcase-card:active {
+  transform: scale(0.97);
+  transition: transform 55ms ease-out;
+}
+
+/* ─── Motion-enabled — Staggered log entries ───────────────────────────────── */
+
+.motion-enabled .log-list .entry-row {
+  animation: cernita-fade-up 280ms ease-out both;
+}
+.motion-enabled .log-list .entry-row:nth-child(1) { animation-delay:   0ms; }
+.motion-enabled .log-list .entry-row:nth-child(2) { animation-delay:  40ms; }
+.motion-enabled .log-list .entry-row:nth-child(3) { animation-delay:  80ms; }
+.motion-enabled .log-list .entry-row:nth-child(4) { animation-delay: 120ms; }
+.motion-enabled .log-list .entry-row:nth-child(5) { animation-delay: 160ms; }
+.motion-enabled .log-list .entry-row:nth-child(n+6) { animation-delay: 200ms; }
+
+/* ─── Motion-enabled — Staggered box cards (Bins) ─────────────────────────── */
+
+.motion-enabled .box-card {
+  animation: cernita-fade-up 280ms ease-out both;
+}
+.motion-enabled .box-card:nth-child(1) { animation-delay:   0ms; }
+.motion-enabled .box-card:nth-child(2) { animation-delay:  50ms; }
+.motion-enabled .box-card:nth-child(3) { animation-delay: 100ms; }
+.motion-enabled .box-card:nth-child(4) { animation-delay: 150ms; }
+.motion-enabled .box-card:nth-child(n+5) { animation-delay: 180ms; }
+
+/* ─── Motion-enabled — Staggered trip / suitcase cards ────────────────────── */
+
+.motion-enabled .trip-card {
+  animation: cernita-fade-up 280ms ease-out both;
+}
+.motion-enabled .trip-card:nth-child(1) { animation-delay:   0ms; }
+.motion-enabled .trip-card:nth-child(2) { animation-delay:  50ms; }
+.motion-enabled .trip-card:nth-child(3) { animation-delay: 100ms; }
+.motion-enabled .trip-card:nth-child(n+4) { animation-delay: 140ms; }
+
+.motion-enabled .suitcase-card {
+  animation: cernita-fade-up 280ms ease-out both;
+}
+.motion-enabled .suitcase-card:nth-child(1) { animation-delay:  30ms; }
+.motion-enabled .suitcase-card:nth-child(2) { animation-delay:  80ms; }
+.motion-enabled .suitcase-card:nth-child(n+3) { animation-delay: 120ms; }
+
+/* ─── Motion-enabled — Dashboard action cards ──────────────────────────────── */
+
+.motion-enabled .dash-action-card {
+  animation: cernita-fade-up 280ms ease-out both;
+}
+.motion-enabled .dash-action-card:nth-child(1) { animation-delay:   0ms; }
+.motion-enabled .dash-action-card:nth-child(2) { animation-delay:  60ms; }
+.motion-enabled .dash-action-card:nth-child(3) { animation-delay: 120ms; }
+.motion-enabled .dash-action-card:nth-child(n+4) { animation-delay: 160ms; }
+
+/* ─── Motion-enabled — Dashboard hero number ───────────────────────────────── */
+
+.motion-enabled .dash-hero-number {
+  animation: cernita-scale-in 400ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ─── Motion-enabled — Result card entrance ─────────────────────────────────── */
+
+.motion-enabled .result-card {
+  animation: cernita-slide-in-bottom 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─── Motion-enabled — Saved card entrance ──────────────────────────────────── */
+
+.motion-enabled .saved-card {
+  animation: cernita-scale-in 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ─── Motion-enabled — Toast entrance ──────────────────────────────────────── */
+
+.motion-enabled .toast {
+  animation: cernita-toast-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ─── Motion-enabled — Thinking ornament pulse ──────────────────────────────── */
+
+.motion-enabled .thinking-ornament {
+  animation: cernita-pulse 1.4s ease-in-out infinite;
+}
+
+/* ─── Motion-enabled — Weight gauge fill — grow from left ───────────────────── */
+
+.motion-enabled .weight-gauge-fill {
+  transform-origin: left center;
+  animation: cernita-bar-grow 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 120ms;
+}
+
+/* ─── Motion-enabled — Suitcase weight bar ──────────────────────────────────── */
+
+.motion-enabled .suitcase-bar-fill {
+  transform-origin: left center;
+  animation: cernita-bar-grow 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─── Motion-enabled — Detail sheet entrance ────────────────────────────────── */
+
+.motion-enabled .detail-sheet {
+  animation: cernita-slide-in-bottom 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─── Motion-enabled — Overlay backdrop fade ───────────────────────────────── */
+
+.motion-enabled .overlay-backdrop {
+  animation: cernita-fade-in 200ms ease-out both;
+}

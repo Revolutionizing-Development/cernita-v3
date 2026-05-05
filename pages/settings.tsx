@@ -184,6 +184,33 @@ export default function SettingsPage() {
             </p>
           </div>
 
+          {/* ── Motion ── */}
+          <h2 className="section-header">
+            Animations · <em className="italic ink-soft">Animazioni</em>
+          </h2>
+          <div className="card" style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontWeight: 600, marginBottom: 2, fontSize: 14 }}>Motion &amp; haptics</p>
+                <p className="settings-hint">
+                  Count-up numbers, staggered lists, spring-back taps, and vibration feedback.
+                  <br />
+                  <em className="ink-soft" style={{ fontSize: 11 }}>Turn off to revert to no-motion mode.</em>
+                </p>
+              </div>
+              <label className="toggle-switch" style={{ flexShrink: 0, marginLeft: 16 }}>
+                <input
+                  type="checkbox"
+                  checked={settings.motionEnabled}
+                  onChange={e => updateSetting('motionEnabled', e.target.checked)}
+                />
+                <span className="toggle-track">
+                  <span className="toggle-thumb" />
+                </span>
+              </label>
+            </div>
+          </div>
+
           {/* ── AI model ── */}
           <h2 className="section-header">
             AI model · <em className="italic ink-soft">Modello AI</em>

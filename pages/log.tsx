@@ -7,6 +7,7 @@ import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import { Entry, Box, Location, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, CernitaSettings } from '../lib/types'
 import { exportCSV } from '../lib/exportCsv'
+import haptic from '../lib/haptic'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -517,6 +518,7 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
 
     setSaving(false)
     if (err) { setError('Delete failed — try again.'); return }
+    haptic.destroy()
     onDeleted(entry.id)
   }
 

@@ -30,7 +30,7 @@ export default function InventoryExportPage() {
 
   // Filter controls — screen only, hidden in print
   const [include, setInclude] = useState<Set<Decision>>(
-    new Set(['KEEP-ITALY', 'KEEP-US', 'GIVE-FAMILY', 'NEEDS-HUMAN', 'SELL', 'DONATE', 'DISPOSE'])
+    new Set(['KEEP-ITALY', 'KEEP-US', 'GIVE-FAMILY', 'NEEDS-HUMAN', 'SELL', 'DONATE', 'DISPOSE'] as Decision[])
   )
 
   const [triggered, setTriggered] = useState(false)
