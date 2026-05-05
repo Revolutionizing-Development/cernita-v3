@@ -96,6 +96,42 @@ export interface Box {
   notes_it: string | null
   closed_at: string | null
   created_at: string
+  // Suitcase fields (spec 007) — null for cardboard boxes
+  box_type: 'cardboard' | 'suitcase' | null
+  trip_id: number | null
+  suitcase_class: 'checked' | 'carry_on' | 'personal_item' | null
+  weight_limit_lb: number | null
+}
+
+export type TripStatus = 'planned' | 'packing' | 'executed' | 'canceled'
+
+export const TRIP_STATUS_LABELS: Record<TripStatus, { en: string; it: string }> = {
+  planned:  { en: 'Planned',   it: 'Pianificato' },
+  packing:  { en: 'Packing',   it: 'In preparazione' },
+  executed: { en: 'Executed',  it: 'Completato' },
+  canceled: { en: 'Canceled',  it: 'Annullato' },
+}
+
+export const SUITCASE_CLASS_LABELS: Record<'checked' | 'carry_on' | 'personal_item', { en: string; it: string }> = {
+  checked:       { en: 'Checked bag',    it: 'Da stiva' },
+  carry_on:      { en: 'Carry-on',       it: 'A mano' },
+  personal_item: { en: 'Personal item',  it: 'Oggetto personale' },
+}
+
+export interface Trip {
+  id: number
+  name: string
+  name_it: string | null
+  traveler_name: string
+  origin_location_id: number | null
+  destination_location_id: number | null
+  departure_date: string | null
+  return_date: string | null
+  status: TripStatus
+  executed_at: string | null
+  notes: string | null
+  notes_it: string | null
+  created_at: string
 }
 
 export interface CernitaSettings {
@@ -107,9 +143,13 @@ export interface CernitaSettings {
   // Ocean shipping
   shippingRatePerLb: number
   shippingRatePerCuFt: number
-  // Weight thresholds
+  // Weight thresholds (cardboard boxes)
   weightSoftThresholdLb: number
   weightHardThresholdLb: number
+  // Trip / suitcase weight defaults (spec 007)
+  checkedBagLimitLb: number
+  carryOnLimitLb: number
+  personalItemLimitLb: number
   // AI
   aiModel: string
   // Rule versioning (bumped when rates change)
@@ -124,6 +164,9 @@ export const DEFAULT_SETTINGS: CernitaSettings = {
   shippingRatePerCuFt: 4.00,
   weightSoftThresholdLb: 50,
   weightHardThresholdLb: 70,
+  checkedBagLimitLb: 50,
+  carryOnLimitLb: 22,
+  personalItemLimitLb: 16,
   aiModel: 'claude-sonnet-4-5',
   rulesVersion: '1.0.0',
 }

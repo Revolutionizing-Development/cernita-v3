@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react'
 import { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
-import { Entry, Box, Location, CernitaSettings, DEFAULT_SETTINGS } from './types'
+import { Entry, Box, Location, Trip, CernitaSettings, DEFAULT_SETTINGS } from './types'
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -13,6 +13,7 @@ export interface AppState {
   log: Entry[]
   boxes: Box[]
   locations: Location[]
+  trips: Trip[]
   syncStatus: SyncStatus
   settings: CernitaSettings
 }
@@ -23,6 +24,7 @@ const initialState: AppState = {
   log: [],
   boxes: [],
   locations: [],
+  trips: [],
   syncStatus: 'offline',
   settings: DEFAULT_SETTINGS,
 }
@@ -40,6 +42,9 @@ type Action =
   | { type: 'SET_LOCATIONS'; locations: Location[] }
   | { type: 'UPSERT_LOCATION'; location: Location }
   | { type: 'DELETE_LOCATION'; id: number }
+  | { type: 'SET_TRIPS'; trips: Trip[] }
+  | { type: 'UPSERT_TRIP'; trip: Trip }
+  | { type: 'DELETE_TRIP'; id: number }
   | { type: 'SET_SYNC'; status: SyncStatus }
   | { type: 'SET_SETTINGS'; settings: CernitaSettings }
 
@@ -86,6 +91,19 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case 'DELETE_LOCATION':
       return { ...state, locations: state.locations.filter(l => l.id !== action.id) }
+    case 'SET_TRIPS':
+      return { ...state, trips: action.trips }
+    case 'UPSERT_TRIP': {
+      const exists = state.trips.some(t => t.id === action.trip.id)
+      return {
+        ...state,
+        trips: exists
+          ? state.trips.map(t => t.id === action.trip.id ? action.trip : t)
+          : [...state.trips, action.trip],
+      }
+    }
+    case 'DELETE_TRIP':
+      return { ...state, trips: state.trips.filter(t => t.id !== action.id) }
     case 'SET_SYNC':
       return { ...state, syncStatus: action.status }
     case 'SET_SETTINGS':
@@ -160,10 +178,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 async function loadAll(dispatch: React.Dispatch<Action>) {
   dispatch({ type: 'SET_SYNC', status: 'syncing' })
 
-  const [entriesRes, boxesRes, locationsRes] = await Promise.all([
+  const [entriesRes, boxesRes, locationsRes, tripsRes] = await Promise.all([
     supabase.from('cernita_entries').select('*').order('created_at', { ascending: false }),
     supabase.from('cernita_boxes').select('*').order('created_at'),
     supabase.from('cernita_locations').select('*').order('sort_order'),
+    supabase.from('cernita_trips').select('*').order('departure_date', { ascending: true }),
   ])
 
   if (!entriesRes.error && entriesRes.data)
@@ -172,6 +191,8 @@ async function loadAll(dispatch: React.Dispatch<Action>) {
     dispatch({ type: 'SET_BOXES', boxes: boxesRes.data as Box[] })
   if (!locationsRes.error && locationsRes.data)
     dispatch({ type: 'SET_LOCATIONS', locations: locationsRes.data as Location[] })
+  if (!tripsRes.error && tripsRes.data)
+    dispatch({ type: 'SET_TRIPS', trips: tripsRes.data as Trip[] })
 
   dispatch({ type: 'SET_SYNC', status: 'online' })
 }
@@ -202,6 +223,13 @@ function setupRealtime(dispatch: React.Dispatch<Action>) {
         dispatch({ type: 'UPSERT_LOCATION', location: payload.new as Location })
       } else if (payload.eventType === 'DELETE') {
         dispatch({ type: 'DELETE_LOCATION', id: (payload.old as { id: number }).id })
+      }
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'cernita_trips' }, (payload) => {
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        dispatch({ type: 'UPSERT_TRIP', trip: payload.new as Trip })
+      } else if (payload.eventType === 'DELETE') {
+        dispatch({ type: 'DELETE_TRIP', id: (payload.old as { id: number }).id })
       }
     })
     .subscribe((status) => {
