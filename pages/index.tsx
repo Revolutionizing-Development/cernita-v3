@@ -5,7 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Box, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel } from '../lib/types'
+import { Box, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel } from '../lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -524,10 +524,14 @@ export default function EvaluatePage() {
                   >
                     <option value="">— No box, skip —</option>
                     {boxes.filter((b: Box) => !b.closed_at).map((b: Box) => {
+                      const isSuitcase = b.box_type === 'suitcase'
                       const lbl = getDecisionLabel(b.destination, settings.usDestination)
+                      const classLbl = isSuitcase && b.suitcase_class
+                        ? SUITCASE_CLASS_LABELS[b.suitcase_class as keyof typeof SUITCASE_CLASS_LABELS]?.en
+                        : null
                       return (
                         <option key={b.id} value={b.id}>
-                          {b.box_number} · {lbl.en.split('—').pop()?.trim()}
+                          {isSuitcase ? '🧳 ' : ''}{b.box_number} · {classLbl ?? lbl.en.split('—').pop()?.trim()}
                         </option>
                       )
                     })}

@@ -5,7 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Box, Location, Entry, Decision, DECISION_BADGE_CLASS, getDecisionLabel } from '../lib/types'
+import { Box, Location, Entry, Decision, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel } from '../lib/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -324,16 +324,25 @@ function BoxCard({ box, log, usDestination, onClick }: {
 }) {
   const items = getBoxItems(log, box.id)
   const { total: weight, unknownCount } = getBoxWeight(log, box.id)
+  const isSuitcase = box.box_type === 'suitcase'
+  const weightLimit = isSuitcase ? (box.weight_limit_lb ?? 50) : 70
   const label = getDecisionLabel(box.destination, usDestination)
   const badgeClass = DECISION_BADGE_CLASS[box.destination] ?? 'badge'
-  const pct = weight != null ? Math.min(100, (weight / 70) * 100) : 0
+  const pct = weight != null ? Math.min(100, (weight / weightLimit) * 100) : 0
   const color = weightColor(weight)
 
   return (
     <button className="box-card" onClick={onClick}>
       <div className="box-card-top">
+        {isSuitcase && <span aria-label="Suitcase" style={{ fontSize: 16, lineHeight: 1, marginRight: 2 }}>🧳</span>}
         <span className="box-number">{box.box_number}</span>
-        <span className={`${badgeClass} box-dest-badge`}>{label.en.split('—').pop()?.trim()}</span>
+        {isSuitcase && box.suitcase_class ? (
+          <span className="suitcase-class-badge" style={{ marginLeft: 4 }}>
+            {SUITCASE_CLASS_LABELS[box.suitcase_class as keyof typeof SUITCASE_CLASS_LABELS]?.en ?? box.suitcase_class}
+          </span>
+        ) : (
+          <span className={`${badgeClass} box-dest-badge`}>{label.en.split('—').pop()?.trim()}</span>
+        )}
         {box.closed_at && <span className="box-closed-badge">Closed</span>}
       </div>
 
@@ -345,6 +354,7 @@ function BoxCard({ box, log, usDestination, onClick }: {
         {weight == null && unknownCount > 0 && (
           <> · <span style={{ color: 'var(--ink-soft)' }}>? lb</span></>
         )}
+        {isSuitcase && <> · <span className="ink-soft">{weightLimit} lb limit</span></>}
       </div>
 
       {/* Weight bar */}
@@ -353,8 +363,8 @@ function BoxCard({ box, log, usDestination, onClick }: {
           className="weight-bar-fill"
           style={{ width: `${pct}%`, background: color }}
         />
-        {pct >= 71 && (
-          <span className="weight-bar-limit" title="Over 70 lb limit">⚠</span>
+        {pct > 100 && (
+          <span className="weight-bar-limit" title={`Over ${weightLimit} lb limit`}>⚠</span>
         )}
       </div>
     </button>

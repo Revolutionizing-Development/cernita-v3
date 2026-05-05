@@ -5,7 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Entry, Box, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel, CernitaSettings } from '../lib/types'
+import { Entry, Box, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, CernitaSettings } from '../lib/types'
 import { exportCSV } from '../lib/exportCsv'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -602,7 +602,7 @@ function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, 
                   onChange={e => setSelectedBoxId(e.target.value === '' ? null : Number(e.target.value))}
                 >
                   <option value="">— No box —</option>
-                  {boxes.filter(b => !b.closed_at).map(b => {
+                  {boxes.filter(b => !b.closed_at && b.box_type !== 'suitcase').map(b => {
                     const lbl = getDecisionLabel(b.destination, settings.usDestination)
                     return (
                       <option key={b.id} value={b.id}>
@@ -610,6 +610,20 @@ function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, 
                       </option>
                     )
                   })}
+                  {boxes.some(b => !b.closed_at && b.box_type === 'suitcase') && (
+                    <optgroup label="🧳 Suitcases">
+                      {boxes.filter(b => !b.closed_at && b.box_type === 'suitcase').map(b => {
+                        const classLbl = b.suitcase_class
+                          ? SUITCASE_CLASS_LABELS[b.suitcase_class as keyof typeof SUITCASE_CLASS_LABELS]?.en
+                          : 'Suitcase'
+                        return (
+                          <option key={b.id} value={b.id}>
+                            {b.box_number} · {classLbl}
+                          </option>
+                        )
+                      })}
+                    </optgroup>
+                  )}
                   {boxes.some(b => b.closed_at) && (
                     <optgroup label="Closed boxes">
                       {boxes.filter(b => b.closed_at).map(b => {
