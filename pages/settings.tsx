@@ -305,11 +305,27 @@ function LocationsManager() {
     setError('')
   }
 
+  const { syncStatus } = state
+
+  if (syncStatus === 'syncing') {
+    return <p className="settings-hint">Loading locations…</p>
+  }
+
   if (locations.length === 0) {
     return (
-      <p className="settings-hint">
-        No locations yet — run the database migration first.
-      </p>
+      <div>
+        <p className="settings-hint" style={{ marginBottom: 12 }}>
+          No locations found. If you haven't run the database migration yet, open{' '}
+          <strong>Supabase → SQL Editor</strong> and run{' '}
+          <code style={{ fontSize: 12, background: 'var(--paper-dark)', padding: '1px 4px', borderRadius: 3 }}>
+            docs/migration-006-boxes-locations.sql
+          </code>
+          , then reload the page.
+        </p>
+        <button className="btn-secondary" style={{ width: '100%' }} onClick={() => window.location.reload()}>
+          Reload · Ricarica
+        </button>
+      </div>
     )
   }
 
