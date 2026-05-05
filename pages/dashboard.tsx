@@ -93,7 +93,7 @@ export default function DashboardPage() {
   // ── Boxes ──────────────────────────────────────────────────────────────────
   const totalBoxes    = boxes.length
   const suitcaseCount = boxes.filter(b => b.box_type === 'suitcase').length
-  const cardboardCount = boxes.filter(b => b.box_type !== 'suitcase').length
+  const plasticCount = boxes.filter(b => b.box_type !== 'suitcase').length
   const climateBoxes  = boxes.filter(b => b.storage_requirement === 'climate_controlled').length
   const garageBoxes   = boxes.filter(b => b.storage_requirement === 'garage_ok').length
   const closedBoxes   = boxes.filter(b => b.closed_at).length
@@ -289,10 +289,10 @@ export default function DashboardPage() {
                       <span className="dash-box-num serif">{totalBoxes}</span>
                       <span className="dash-box-lbl">total</span>
                     </div>
-                    {cardboardCount > 0 && (
+                    {plasticCount > 0 && (
                       <div className="dash-box-stat">
-                        <span className="dash-box-num serif">{cardboardCount}</span>
-                        <span className="dash-box-lbl">📦 cardboard</span>
+                        <span className="dash-box-num serif">{plasticCount}</span>
+                        <span className="dash-box-lbl">📦 plastic</span>
                       </div>
                     )}
                     {suitcaseCount > 0 && (

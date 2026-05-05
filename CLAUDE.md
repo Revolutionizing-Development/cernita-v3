@@ -81,7 +81,7 @@ This is a fresh rebuild. The previous single-file HTML app is being replaced. Ke
 
 Supabase (PostgreSQL). Key tables:
 - `cernita_entries` — evaluated items with bilingual names, rationales, decisions, photos
-- `cernita_boxes` — physical containers (cardboard, plastic, suitcase)
+- `cernita_boxes` — physical containers (plastic boxes, suitcases); `box_type: 'plastic' | 'suitcase'`
 - `cernita_locations` — where boxes/items physically are
 - `cernita_trips` — planned/executed travel events
 - `cernita_calls` — AI phone call records

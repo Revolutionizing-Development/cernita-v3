@@ -100,8 +100,8 @@ export interface Box {
   notes_it: string | null
   closed_at: string | null
   created_at: string
-  // Suitcase fields (spec 007) — null for cardboard boxes
-  box_type: 'cardboard' | 'suitcase' | null
+  // Suitcase fields (spec 007) — null for plastic boxes
+  box_type: 'plastic' | 'suitcase' | null
   trip_id: number | null
   suitcase_class: 'checked' | 'carry_on' | 'personal_item' | null
   weight_limit_lb: number | null
@@ -155,7 +155,7 @@ export interface CernitaSettings {
   // Ocean shipping
   shippingRatePerLb: number
   shippingRatePerCuFt: number
-  // Weight thresholds (cardboard boxes)
+  // Weight thresholds (plastic boxes)
   weightSoftThresholdLb: number
   weightHardThresholdLb: number
   // Trip / suitcase weight defaults (spec 007)

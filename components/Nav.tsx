@@ -2,11 +2,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 
 const TABS = [
-  { href: '/',           icon: '◎', label: 'Evaluate' },
+  { href: '/dashboard',  icon: '◈', label: 'Overview' },
+  { href: '/evaluate',   icon: '◎', label: 'Evaluate' },
   { href: '/log',        icon: '☰', label: 'Log' },
   { href: '/bins',       icon: '⊞', label: 'Bins' },
   { href: '/trips',      icon: '✈', label: 'Trips' },
-  { href: '/dashboard',  icon: '◈', label: 'Overview' },
   { href: '/settings',   icon: '⚙', label: 'Settings' },
 ]
 

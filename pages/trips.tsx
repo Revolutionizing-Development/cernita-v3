@@ -322,12 +322,12 @@ function TripDetailOverlay({ trip, boxes, locations, log, settings, onClose, onS
   }
 
   async function handleCancel() {
-    // Unassign suitcases from trip (revert to cardboard boxes)
+    // Unassign suitcases from trip (revert to plastic boxes)
     setSaving(true)
     for (const s of suitcases) {
       const { data } = await supabase
         .from('cernita_boxes')
-        .update({ trip_id: null, box_type: 'cardboard', suitcase_class: null })
+        .update({ trip_id: null, box_type: 'plastic', suitcase_class: null })
         .eq('id', s.id)
         .select()
         .single()
@@ -548,7 +548,7 @@ function TripDetailOverlay({ trip, boxes, locations, log, settings, onClose, onS
               <p className="delete-confirm-text">
                 Cancel <strong>{trip.name}</strong>?
                 <span style={{ display: 'block', fontSize: 13, color: 'var(--ink-soft)', marginTop: 4 }}>
-                  Bags will revert to unpacked cardboard boxes. Items stay in their boxes.
+                  Bags will revert to unpacked plastic boxes. Items stay in their boxes.
                 </span>
               </p>
               <div style={{ display: 'flex', gap: 8 }}>
