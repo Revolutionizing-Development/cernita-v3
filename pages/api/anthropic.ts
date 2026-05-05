@@ -63,6 +63,11 @@ ${description ? `Item description: ${description}` : ''}`
     messages.push({ role: 'user', content: prompt })
   }
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error('ANTHROPIC_API_KEY is not set')
+    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' })
+  }
+
   try {
     const response = await anthropic.messages.create({
       model: settings.aiModel || 'claude-sonnet-4-5',
@@ -71,10 +76,17 @@ ${description ? `Item description: ${description}` : ''}`
     })
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
-    const result = JSON.parse(text)
+    let result
+    try {
+      result = JSON.parse(text)
+    } catch {
+      console.error('Failed to parse AI JSON response:', text.slice(0, 200))
+      return res.status(500).json({ error: 'AI returned invalid JSON' })
+    }
     res.status(200).json(result)
-  } catch (err) {
-    console.error('Anthropic error:', err)
-    res.status(500).json({ error: 'AI evaluation failed' })
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('Anthropic API error:', msg)
+    res.status(500).json({ error: `AI evaluation failed: ${msg}` })
   }
 }

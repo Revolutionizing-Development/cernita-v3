@@ -179,7 +179,10 @@ export default function EvaluatePage() {
         signal: abortRef.current.signal,
       })
 
-      if (!res.ok) throw new Error(`API ${res.status}`)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(`API_${res.status}:${body?.error ?? ''}`)
+      }
       const data = await res.json()
 
       // Sanitize: guard against unexpected decision values
@@ -196,12 +199,22 @@ export default function EvaluatePage() {
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return // user cancelled
       console.error('Evaluate error:', err)
+
+      let msg = 'AI unavailable — please try again · Riprovare.'
+      if (err instanceof Error) {
+        if (err.message.startsWith('API_401')) {
+          msg = 'Session expired — please sign out and back in.'
+        } else if (err.message.startsWith('API_5')) {
+          msg = `Server error — check Vercel logs. (${err.message})`
+        }
+      }
+
       setPhase('error')
-      setErrorMsg('AI unavailable — please try again · Riprovare.')
+      setErrorMsg(msg)
       setTimeout(() => {
         setErrorMsg('')
         setPhase(cameraBlocked ? 'text' : 'camera')
-      }, 3000)
+      }, 5000)
     }
   }
 
