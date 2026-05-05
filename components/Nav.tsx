@@ -2,12 +2,12 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 
 const TABS = [
-  { href: '/',        icon: '◎', label: 'Evaluate' },
-  { href: '/log',     icon: '☰', label: 'Log' },
-  { href: '/bins',    icon: '⊞', label: 'Bins' },
-  { href: '/trips',   icon: '✈', label: 'Trips' },
-  { href: '/discuss', icon: '◇', label: 'Discuss' },
-  { href: '/settings',icon: '⚙', label: 'Settings' },
+  { href: '/',           icon: '◎', label: 'Evaluate' },
+  { href: '/log',        icon: '☰', label: 'Log' },
+  { href: '/bins',       icon: '⊞', label: 'Bins' },
+  { href: '/trips',      icon: '✈', label: 'Trips' },
+  { href: '/dashboard',  icon: '◈', label: 'Overview' },
+  { href: '/settings',   icon: '⚙', label: 'Settings' },
 ]
 
 export default function Nav() {
