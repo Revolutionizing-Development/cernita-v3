@@ -63,6 +63,7 @@ export default function LogPage() {
   const { log: entries, boxes, settings, user } = state
 
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState('')
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null)
   const [toast, setToast] = useState('')
 
@@ -88,11 +89,21 @@ export default function LogPage() {
     })
   }
 
-  const filtered = activeFilters.size === 0 ? entries : entries.filter(e => {
-    if (activeFilters.has('OUTDATED') && isOutdated(e, settings)) return true
-    if (activeFilters.has(e.final_decision)) return true
-    return false
-  })
+  const filtered = (() => {
+    let result = activeFilters.size === 0 ? entries : entries.filter(e => {
+      if (activeFilters.has('OUTDATED') && isOutdated(e, settings)) return true
+      if (activeFilters.has(e.final_decision)) return true
+      return false
+    })
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      result = result.filter(e =>
+        e.item_name.toLowerCase().includes(q) ||
+        (e.item_name_it?.toLowerCase().includes(q) ?? false)
+      )
+    }
+    return result
+  })()
 
   // ─── Summary counts ────────────────────────────────────────────────────────
 
@@ -130,6 +141,22 @@ export default function LogPage() {
         </header>
 
         {toast && <div className="toast">{toast}</div>}
+
+        {/* Search bar */}
+        {entries.length > 0 && (
+          <div className="log-search">
+            <input
+              className="log-search-input"
+              type="search"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search items… · Cerca…"
+            />
+            {searchQuery && (
+              <button className="log-search-clear" onClick={() => setSearchQuery('')} aria-label="Clear search">✕</button>
+            )}
+          </div>
+        )}
 
         <div className="page-content">
 
@@ -188,7 +215,12 @@ export default function LogPage() {
 
           {/* List */}
           {filtered.length === 0 ? (
-            <EmptyState hasEntries={entries.length > 0} hasFilters={activeFilters.size > 0} onClear={() => setActiveFilters(new Set())} />
+            <EmptyState
+              hasEntries={entries.length > 0}
+              hasFilters={activeFilters.size > 0}
+              hasSearch={!!searchQuery.trim()}
+              onClear={() => { setActiveFilters(new Set()); setSearchQuery('') }}
+            />
           ) : (
             <div className="log-list">
               {filtered.map(entry => (
@@ -231,17 +263,18 @@ export default function LogPage() {
 
 // ─── EmptyState ───────────────────────────────────────────────────────────────
 
-function EmptyState({ hasEntries, hasFilters, onClear }: {
+function EmptyState({ hasEntries, hasFilters, hasSearch, onClear }: {
   hasEntries: boolean
   hasFilters: boolean
+  hasSearch: boolean
   onClear: () => void
 }) {
-  if (hasFilters) {
+  if (hasSearch || hasFilters) {
     return (
       <div className="empty-state">
         <h3>No matches</h3>
-        <p className="italic ink-soft" style={{ marginBottom: 16 }}>Nessun risultato per questo filtro.</p>
-        <button className="btn-secondary" onClick={onClear}>Clear filters · Rimuovi filtri</button>
+        <p className="italic ink-soft" style={{ marginBottom: 16 }}>Nessun risultato.</p>
+        <button className="btn-secondary" onClick={onClear}>Clear · Cancella</button>
       </div>
     )
   }

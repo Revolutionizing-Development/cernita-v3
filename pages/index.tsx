@@ -5,7 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel } from '../lib/types'
+import { Box, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel } from '../lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,7 +82,7 @@ async function captureFrame(video: HTMLVideoElement, maxBytes = 200_000): Promis
 
 export default function EvaluatePage() {
   const { state, dispatch } = useApp()
-  const { settings, user } = state
+  const { settings, user, boxes } = state
 
   const [phase, setPhase] = useState<EvalPhase>('camera')
   const [description, setDescription] = useState('')
@@ -96,6 +96,12 @@ export default function EvaluatePage() {
   const [overrideDecision, setOverrideDecision] = useState<Decision>('NEEDS-HUMAN')
   const [overrideReason, setOverrideReason] = useState('')
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
+
+  // Post-save box prompt state
+  const [savedEntryId, setSavedEntryId] = useState<number | null>(null)
+  const [savedItemName, setSavedItemName] = useState('')
+  const [packBoxId, setPackBoxId] = useState<number | ''>('')
+  const [packing, setPacking] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -309,16 +315,49 @@ export default function EvaluatePage() {
     setOverrideReason('')
     setErrorMsg('')
 
+    // Store saved entry for box prompt
+    setSavedEntryId(data.id)
+    setSavedItemName(savedName)
+    setPackBoxId('')
+
     const toast = savedNameIt
       ? `${savedName} · ${savedNameIt} — Saved · Salvato`
       : `${savedName} — Saved · Salvato`
     setToastMsg(toast)
     setPhase('saved')
 
-    setTimeout(() => {
-      setToastMsg('')
-      setPhase(cameraBlocked ? 'text' : 'camera')
-    }, 2800)
+    // Auto-reset only if no open boxes to assign to
+    const openBoxes = boxes.filter((b: Box) => !b.closed_at)
+    if (openBoxes.length === 0) {
+      setTimeout(() => resetToCamera(), 2800)
+    }
+  }
+
+  // ─── Reset to camera ──────────────────────────────────────────────────────
+
+  function resetToCamera() {
+    setSavedEntryId(null)
+    setSavedItemName('')
+    setPackBoxId('')
+    setPacking(false)
+    setToastMsg('')
+    setPhase(cameraBlocked ? 'text' : 'camera')
+  }
+
+  // ─── Pack into box ─────────────────────────────────────────────────────────
+
+  async function handlePackEntry() {
+    if (!savedEntryId || !packBoxId) { resetToCamera(); return }
+    setPacking(true)
+    const { data, error } = await supabase
+      .from('cernita_entries')
+      .update({ box_id: packBoxId as number })
+      .eq('id', savedEntryId)
+      .select()
+      .single()
+    if (!error && data) dispatch({ type: 'UPSERT_ENTRY', entry: data })
+    setPacking(false)
+    resetToCamera()
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -464,6 +503,61 @@ export default function EvaluatePage() {
             onCancel={() => setPhase('result')}
             onSave={() => saveEntry(overrideDecision, overrideReason || undefined)}
           />
+        )}
+
+        {/* ── Saved + box prompt (State E) ── */}
+        {phase === 'saved' && (
+          <div className="page-content">
+            <div className="saved-card">
+              <div className="saved-ornament">✓</div>
+              <h3 className="saved-name serif">{savedItemName}</h3>
+              <p className="saved-subtitle italic ink-soft">Salvato con successo</p>
+
+              {boxes.filter((b: Box) => !b.closed_at).length > 0 ? (
+                <div className="saved-box-prompt">
+                  <p className="box-assign-label">Pack into a box? · Inscatola?</p>
+                  <select
+                    className="input"
+                    value={packBoxId}
+                    onChange={e => setPackBoxId(e.target.value ? Number(e.target.value) : '')}
+                    style={{ marginBottom: 12 }}
+                  >
+                    <option value="">— No box, skip —</option>
+                    {boxes.filter((b: Box) => !b.closed_at).map((b: Box) => {
+                      const lbl = getDecisionLabel(b.destination, settings.usDestination)
+                      return (
+                        <option key={b.id} value={b.id}>
+                          {b.box_number} · {lbl.en.split('—').pop()?.trim()}
+                        </option>
+                      )
+                    })}
+                  </select>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="btn-secondary"
+                      style={{ flex: 1 }}
+                      onClick={resetToCamera}
+                      disabled={packing}
+                    >
+                      Skip · Salta
+                    </button>
+                    <button
+                      className="btn-primary"
+                      style={{ flex: 2 }}
+                      onClick={handlePackEntry}
+                      disabled={!packBoxId || packing}
+                    >
+                      {packing ? 'Packing…' : 'Pack it · Inscatola'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="ink-soft" style={{ fontSize: 13, marginTop: 8 }}>
+                  Returning to camera… · Torno alla fotocamera…
+                </p>
+              )}
+            </div>
+          </div>
         )}
 
         <Nav />
