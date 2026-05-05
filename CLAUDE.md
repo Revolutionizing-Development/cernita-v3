@@ -38,17 +38,36 @@ This is a fresh rebuild. The previous single-file HTML app is being replaced. Ke
 
 ## Feature status
 
-**Shipped (in previous codebase — specs describe desired behavior for rebuild):**
-- 001-bilingual-item-names
-- 002-bilingual-rationale
-- 003-backend-proxy (auth model)
-- 004-vercel-deployment
+**Shipped in rebuild:**
+- 001-bilingual-item-names — AI returns EN + IT item names
+- 002-bilingual-rationale — AI returns EN + IT rationale paragraphs
+- 003-backend-proxy / 009-authentication — Supabase auth, AuthGuard, session
+- 004-vercel-deployment / 010-stack-architecture — Next.js 14, Vercel, AppContext, Realtime
+- 005-log-search — search bar + filter pills (decision, outdated, unboxed)
+- 006-location-tracking — locations table, box location picker, LocationsManager in Settings
+- 007-trips-suitcases — Trips page, suitcase manifest, weight gauges, execute/lock workflow
+- 008-preservation — fragility, survival_risk, packing_notes in AI output and UI
+- 011-core-evaluation — camera capture, AI evaluation, result card, override, save
+- 012-csv-export — CSV export in Log header and Settings
+- 013-log-tab — Log page with filters, detail overlay, box assignment, location assignment
+- 014-settings-tab — Settings page with rates, AI model, bag limits, LocationsManager
 
-**Draft (not yet implemented):**
-- 005-log-search (Tier 2, small)
-- 006-location-tracking (Tier 3, substantial)
-- 007-trips-suitcases (Tier 3, depends on 006)
-- 008-preservation (Tier 3, depends on 006)
+**Shipped (no formal spec yet — needs spec written):**
+- Unboxed item labelling — "◻ Unboxed" filter pill; location picker on loose items;
+  loose items shown with weight/volume/est-ship-cost in Bins location view
+- Shipping restrictions / hazmat — AI flags prohibited/restricted items (lithium batteries,
+  aerosols, flammables); 🚫/⚠️ badges in Log and result card; migration 008
+- Storage requirements — boxes get climate_controlled/standard/garage_ok label;
+  shown in BoxCard and BoxDetailOverlay; migration 008
+- Item model identification — AI identifies brand+model from photo for pricing accuracy;
+  shown in result card and detail overlay; migration 009
+
+**Requested, not yet built:**
+- PDF export with photos (spec needed — user requested)
+- Italian government import / customs declaration forms (spec needed — user requested)
+- Dashboard / statistics overview (total weight, costs, decision breakdown)
+- Box manifests — printable per-box packing list
+- Motion / animations — constitution principle 6: count-up, staggered reveals, spring-back, haptic
 
 ## Design system
 
@@ -75,3 +94,8 @@ Manual testing checklist pattern (from specs):
 - Two phones see same data in real time (Supabase sync)
 - Old cached version degrades gracefully
 - Mobile keyboard behavior is correct
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
