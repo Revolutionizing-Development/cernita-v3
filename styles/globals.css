@@ -1374,3 +1374,95 @@ body {
   padding-top: 16px;
   border-top: 1px solid var(--paper-dark);
 }
+
+/* ── Locations manager (Settings) ──────────────────────────────────────────── */
+
+.loc-row {
+  border-bottom: 1px solid var(--paper-dark);
+  padding: 4px 0;
+}
+
+.loc-row:last-of-type { border-bottom: none; }
+
+.loc-row-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.loc-order-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.loc-order-btn {
+  background: none;
+  border: 1px solid var(--paper-dark);
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 5px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-family: var(--font-sans);
+}
+
+.loc-order-btn:disabled { opacity: 0.25; cursor: default; }
+.loc-order-btn:not(:disabled):hover { background: var(--paper-dark); color: var(--ink); }
+
+.loc-names {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.loc-name {
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.loc-name-it {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.loc-box-count {
+  font-size: 10px;
+  background: var(--paper-dark);
+  color: var(--ink-soft);
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.loc-edit-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 4px 8px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.loc-edit-btn:hover { color: var(--terracotta); }
+
+.loc-edit-form {
+  padding: 12px 0 14px;
+}
+
+.loc-add-form {
+  padding: 14px 0 4px;
+  border-top: 1px solid var(--paper-dark);
+  margin-top: 8px;
+}

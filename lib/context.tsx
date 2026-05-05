@@ -39,6 +39,7 @@ type Action =
   | { type: 'DELETE_BOX'; id: number }
   | { type: 'SET_LOCATIONS'; locations: Location[] }
   | { type: 'UPSERT_LOCATION'; location: Location }
+  | { type: 'DELETE_LOCATION'; id: number }
   | { type: 'SET_SYNC'; status: SyncStatus }
   | { type: 'SET_SETTINGS'; settings: CernitaSettings }
 
@@ -83,6 +84,8 @@ function reducer(state: AppState, action: Action): AppState {
           : [...state.locations, action.location].sort((a, b) => a.sort_order - b.sort_order),
       }
     }
+    case 'DELETE_LOCATION':
+      return { ...state, locations: state.locations.filter(l => l.id !== action.id) }
     case 'SET_SYNC':
       return { ...state, syncStatus: action.status }
     case 'SET_SETTINGS':
@@ -197,6 +200,8 @@ function setupRealtime(dispatch: React.Dispatch<Action>) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'cernita_locations' }, (payload) => {
       if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
         dispatch({ type: 'UPSERT_LOCATION', location: payload.new as Location })
+      } else if (payload.eventType === 'DELETE') {
+        dispatch({ type: 'DELETE_LOCATION', id: (payload.old as { id: number }).id })
       }
     })
     .subscribe((status) => {

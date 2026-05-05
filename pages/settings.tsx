@@ -6,6 +6,7 @@ import Nav from '../components/Nav'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import { exportCSV } from '../lib/exportCsv'
+import { Location } from '../lib/types'
 
 export default function SettingsPage() {
   const { state, dispatch } = useApp()
@@ -177,6 +178,14 @@ export default function SettingsPage() {
             </select>
           </div>
 
+          {/* ── Locations ── */}
+          <h2 className="section-header">
+            Locations · <em className="italic ink-soft">Posizioni</em>
+          </h2>
+          <div className="card" style={{ marginBottom: 24 }}>
+            <LocationsManager />
+          </div>
+
           {/* ── Maintenance ── */}
           <h2 className="section-header">
             Maintenance · <em className="italic ink-soft">Manutenzione</em>
@@ -203,5 +212,263 @@ export default function SettingsPage() {
         <Nav />
       </div>
     </AuthGuard>
+  )
+}
+
+// ─── LocationsManager ─────────────────────────────────────────────────────────
+
+function LocationsManager() {
+  const { state, dispatch } = useApp()
+  const { locations, boxes } = state
+
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editNameIt, setEditNameIt] = useState('')
+  const [showAdd, setShowAdd] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newNameIt, setNewNameIt] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const sorted = [...locations].sort((a, b) => a.sort_order - b.sort_order)
+
+  function boxCountAt(locationId: number) {
+    return boxes.filter(b => b.current_location_id === locationId).length
+  }
+
+  async function handleReorder(loc: Location, direction: 'up' | 'down') {
+    const idx = sorted.findIndex(l => l.id === loc.id)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= sorted.length) return
+    const other = sorted[swapIdx]
+    setSaving(true)
+    await Promise.all([
+      supabase.from('cernita_locations').update({ sort_order: other.sort_order }).eq('id', loc.id),
+      supabase.from('cernita_locations').update({ sort_order: loc.sort_order }).eq('id', other.id),
+    ])
+    setSaving(false)
+    dispatch({ type: 'UPSERT_LOCATION', location: { ...loc, sort_order: other.sort_order } })
+    dispatch({ type: 'UPSERT_LOCATION', location: { ...other, sort_order: loc.sort_order } })
+  }
+
+  function startEdit(loc: Location) {
+    setEditingId(loc.id)
+    setEditName(loc.name)
+    setEditNameIt(loc.name_it ?? '')
+    setConfirmDeleteId(null)
+    setError('')
+  }
+
+  async function handleSaveEdit(id: number) {
+    if (!editName.trim()) { setError('Name is required'); return }
+    setSaving(true)
+    const { data, error: err } = await supabase
+      .from('cernita_locations')
+      .update({ name: editName.trim(), name_it: editNameIt.trim() || null })
+      .eq('id', id)
+      .select()
+      .single()
+    setSaving(false)
+    if (err || !data) { setError('Save failed — try again'); return }
+    dispatch({ type: 'UPSERT_LOCATION', location: data as Location })
+    setEditingId(null)
+  }
+
+  async function handleDelete(loc: Location) {
+    const count = boxCountAt(loc.id)
+    if (count > 0) { setError(`Move ${count} box${count !== 1 ? 'es' : ''} out of "${loc.name}" first`); return }
+    setSaving(true)
+    const { error: err } = await supabase.from('cernita_locations').delete().eq('id', loc.id)
+    setSaving(false)
+    if (err) { setError('Delete failed — try again'); return }
+    dispatch({ type: 'DELETE_LOCATION', id: loc.id })
+    setEditingId(null)
+    setConfirmDeleteId(null)
+  }
+
+  async function handleAdd() {
+    if (!newName.trim()) return
+    const maxOrder = sorted.length > 0 ? Math.max(...sorted.map(l => l.sort_order)) : 0
+    setSaving(true)
+    const { data, error: err } = await supabase
+      .from('cernita_locations')
+      .insert({ name: newName.trim(), name_it: newNameIt.trim() || null, sort_order: maxOrder + 10 })
+      .select()
+      .single()
+    setSaving(false)
+    if (err || !data) { setError('Add failed — try again'); return }
+    dispatch({ type: 'UPSERT_LOCATION', location: data as Location })
+    setNewName('')
+    setNewNameIt('')
+    setShowAdd(false)
+    setError('')
+  }
+
+  if (locations.length === 0) {
+    return (
+      <p className="settings-hint">
+        No locations yet — run the database migration first.
+      </p>
+    )
+  }
+
+  return (
+    <div>
+      {error && <p className="eval-error-text" style={{ marginBottom: 10 }}>{error}</p>}
+
+      {sorted.map((loc, idx) => {
+        const count = boxCountAt(loc.id)
+        const isEditing = editingId === loc.id
+
+        return (
+          <div key={loc.id} className="loc-row">
+            {isEditing ? (
+              <div className="loc-edit-form">
+                <label className="input-label">Name in English</label>
+                <input
+                  className="input"
+                  style={{ marginBottom: 8 }}
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  placeholder="e.g. Colorado Springs storage"
+                />
+                <label className="input-label">Nome in italiano (opzionale)</label>
+                <input
+                  className="input"
+                  style={{ marginBottom: 14 }}
+                  value={editNameIt}
+                  onChange={e => setEditNameIt(e.target.value)}
+                  placeholder="e.g. Deposito a Colorado Springs"
+                />
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <button
+                    className="btn-secondary"
+                    style={{ flex: 1 }}
+                    onClick={() => { setEditingId(null); setError('') }}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn-primary"
+                    style={{ flex: 2 }}
+                    onClick={() => handleSaveEdit(loc.id)}
+                    disabled={saving}
+                  >
+                    {saving ? 'Saving…' : 'Save · Salva'}
+                  </button>
+                </div>
+
+                {confirmDeleteId === loc.id ? (
+                  <div className="delete-confirm">
+                    <p className="delete-confirm-text">Delete <strong>{loc.name}</strong>?</p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn-secondary" style={{ flex: 1 }} onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+                      <button
+                        className="btn-destructive"
+                        style={{ flex: 1 }}
+                        onClick={() => handleDelete(loc)}
+                        disabled={saving || count > 0}
+                      >
+                        {saving ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    className="btn-destructive"
+                    style={{ width: '100%' }}
+                    onClick={() => {
+                      if (count > 0) setError(`Move ${count} box${count !== 1 ? 'es' : ''} out of "${loc.name}" before deleting`)
+                      else setConfirmDeleteId(loc.id)
+                    }}
+                  >
+                    Delete · Elimina{count > 0 ? ` (${count} box${count !== 1 ? 'es' : ''} here)` : ''}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="loc-row-content">
+                <div className="loc-order-btns">
+                  <button
+                    className="loc-order-btn"
+                    onClick={() => handleReorder(loc, 'up')}
+                    disabled={idx === 0 || saving}
+                    aria-label="Move up"
+                  >↑</button>
+                  <button
+                    className="loc-order-btn"
+                    onClick={() => handleReorder(loc, 'down')}
+                    disabled={idx === sorted.length - 1 || saving}
+                    aria-label="Move down"
+                  >↓</button>
+                </div>
+                <div className="loc-names">
+                  <span className="loc-name">{loc.name}</span>
+                  {loc.name_it && loc.name_it !== loc.name && (
+                    <span className="loc-name-it"> · {loc.name_it}</span>
+                  )}
+                  {count > 0 && (
+                    <span className="loc-box-count">{count} box{count !== 1 ? 'es' : ''}</span>
+                  )}
+                </div>
+                <button className="loc-edit-btn" onClick={() => startEdit(loc)} aria-label="Edit location">
+                  ✎
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {showAdd ? (
+        <div className="loc-add-form">
+          <label className="input-label">Name in English</label>
+          <input
+            className="input"
+            style={{ marginBottom: 10 }}
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="e.g. Dad's garage"
+            autoFocus
+          />
+          <label className="input-label">Nome in italiano (opzionale)</label>
+          <input
+            className="input"
+            style={{ marginBottom: 14 }}
+            value={newNameIt}
+            onChange={e => setNewNameIt(e.target.value)}
+            placeholder="e.g. Garage di papà"
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn-secondary"
+              style={{ flex: 1 }}
+              onClick={() => { setShowAdd(false); setNewName(''); setNewNameIt(''); setError('') }}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn-primary"
+              style={{ flex: 2 }}
+              onClick={handleAdd}
+              disabled={saving || !newName.trim()}
+            >
+              {saving ? 'Adding…' : 'Add · Aggiungi'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          className="btn-secondary"
+          style={{ width: '100%', marginTop: 10 }}
+          onClick={() => { setShowAdd(true); setError('') }}
+        >
+          + Add location · Aggiungi posizione
+        </button>
+      )}
+    </div>
   )
 }
