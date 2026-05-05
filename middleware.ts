@@ -5,12 +5,18 @@ import type { NextRequest } from 'next/server'
 // Runs on every request. Refreshes the Supabase session cookie so the
 // JWT never goes stale between page loads — no manual token refresh needed.
 export async function middleware(request: NextRequest) {
+  // Pass through immediately if env vars aren't configured yet.
+  // This prevents a missing-config crash from taking down every route.
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) {
+    return NextResponse.next()
+  }
+
   let response = NextResponse.next({ request })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  try {
+    const supabase = createServerClient(url, key, {
       cookies: {
         getAll() {
           return request.cookies.getAll()
@@ -24,11 +30,14 @@ export async function middleware(request: NextRequest) {
           )
         },
       },
-    }
-  )
+    })
 
-  // This call refreshes the session if it's expiring — the key operation.
-  await supabase.auth.getUser()
+    // This call refreshes the session if it's expiring — the key operation.
+    await supabase.auth.getUser()
+  } catch {
+    // A middleware error must never block the user — pass through.
+    // The page itself will handle the unauthenticated state.
+  }
 
   return response
 }
