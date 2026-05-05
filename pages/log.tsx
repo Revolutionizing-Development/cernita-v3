@@ -5,7 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Entry, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel, CernitaSettings } from '../lib/types'
+import { Entry, Box, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel, CernitaSettings } from '../lib/types'
 import { exportCSV } from '../lib/exportCsv'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@ const ALL_DECISIONS: Decision[] = [
 
 export default function LogPage() {
   const { state, dispatch } = useApp()
-  const { log: entries, settings, user } = state
+  const { log: entries, boxes, settings, user } = state
 
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null)
@@ -208,6 +208,7 @@ export default function LogPage() {
           <DetailOverlay
             entry={selectedEntry}
             settings={settings}
+            boxes={boxes}
             currentUser={user?.user_metadata?.display_name ?? user?.email?.split('@')[0] ?? 'you'}
             onClose={() => setSelectedEntry(null)}
             onSaved={(updated) => {
@@ -306,9 +307,10 @@ function EntryRow({ entry, outdated, onClick }: {
 
 // ─── DetailOverlay ────────────────────────────────────────────────────────────
 
-function DetailOverlay({ entry, settings, currentUser, onClose, onSaved, onDeleted }: {
+function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, onDeleted }: {
   entry: Entry
   settings: CernitaSettings
+  boxes: Box[]
   currentUser: string
   onClose: () => void
   onSaved: (e: Entry) => void
@@ -323,6 +325,10 @@ function DetailOverlay({ entry, settings, currentUser, onClose, onSaved, onDelet
   // Override form state
   const [overrideDecision, setOverrideDecision] = useState<Decision>(entry.final_decision)
   const [overrideReason, setOverrideReason] = useState('')
+
+  // Box assignment state
+  const [selectedBoxId, setSelectedBoxId] = useState<number | null | ''>(entry.box_id ?? null)
+  const [savingBox, setSavingBox] = useState(false)
 
   // ── Save override ──────────────────────────────────────────────────────────
   async function handleOverrideSave() {
@@ -384,6 +390,22 @@ function DetailOverlay({ entry, settings, currentUser, onClose, onSaved, onDelet
       .single()
 
     setSaving(false)
+    if (err || !data) { setError('Save failed — try again.'); return }
+    onSaved(data as Entry)
+  }
+
+  // ── Box assignment ────────────────────────────────────────────────────────
+  async function handleBoxAssign() {
+    setSavingBox(true)
+    setError('')
+    const newBoxId = selectedBoxId === '' ? null : (selectedBoxId as number | null)
+    const { data, error: err } = await supabase
+      .from('cernita_entries')
+      .update({ box_id: newBoxId })
+      .eq('id', entry.id)
+      .select()
+      .single()
+    setSavingBox(false)
     if (err || !data) { setError('Save failed — try again.'); return }
     onSaved(data as Entry)
   }
@@ -523,6 +545,60 @@ function DetailOverlay({ entry, settings, currentUser, onClose, onSaved, onDelet
                   )}
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Box assignment */}
+          {boxes.length > 0 && (
+            <div className="box-assign-section">
+              <p className="box-assign-label">Box · Scatola</p>
+              {entry.box_id ? (
+                <p className="box-assign-current">
+                  Currently in <strong className="box-number" style={{ fontSize: 13 }}>
+                    {boxes.find(b => b.id === entry.box_id)?.box_number ?? `#${entry.box_id}`}
+                  </strong>
+                </p>
+              ) : (
+                <p className="box-assign-current">Not packed · Non ancora inscatolato</p>
+              )}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <select
+                  className="input"
+                  style={{ flex: 1, fontSize: 13, padding: '8px 10px' }}
+                  value={selectedBoxId === null ? '' : selectedBoxId}
+                  onChange={e => setSelectedBoxId(e.target.value === '' ? null : Number(e.target.value))}
+                >
+                  <option value="">— No box —</option>
+                  {boxes.filter(b => !b.closed_at).map(b => {
+                    const lbl = getDecisionLabel(b.destination, settings.usDestination)
+                    return (
+                      <option key={b.id} value={b.id}>
+                        {b.box_number} · {lbl.en.split('—').pop()?.trim()}
+                      </option>
+                    )
+                  })}
+                  {boxes.some(b => b.closed_at) && (
+                    <optgroup label="Closed boxes">
+                      {boxes.filter(b => b.closed_at).map(b => {
+                        const lbl = getDecisionLabel(b.destination, settings.usDestination)
+                        return (
+                          <option key={b.id} value={b.id}>
+                            {b.box_number} · {lbl.en.split('—').pop()?.trim()} (closed)
+                          </option>
+                        )
+                      })}
+                    </optgroup>
+                  )}
+                </select>
+                <button
+                  className="btn-secondary"
+                  style={{ whiteSpace: 'nowrap', padding: '8px 14px', fontSize: 13 }}
+                  onClick={handleBoxAssign}
+                  disabled={savingBox || selectedBoxId === (entry.box_id ?? null)}
+                >
+                  {savingBox ? '…' : 'Assign · Assegna'}
+                </button>
+              </div>
             </div>
           )}
 

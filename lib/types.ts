@@ -78,6 +78,26 @@ export const DECISION_BADGE_CLASS: Record<Decision, string> = {
   'NEEDS-HUMAN': 'badge badge-needs-human',
 }
 
+export interface Location {
+  id: number
+  name: string
+  name_it: string | null
+  is_default: boolean
+  sort_order: number
+  created_at: string
+}
+
+export interface Box {
+  id: number
+  box_number: string
+  destination: Decision
+  current_location_id: number | null
+  notes: string | null
+  notes_it: string | null
+  closed_at: string | null
+  created_at: string
+}
+
 export interface CernitaSettings {
   // Move route
   usDestination: string        // the intermediate US city (e.g. "Colorado Springs")

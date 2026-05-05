@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react'
 import { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
-import { Entry, CernitaSettings, DEFAULT_SETTINGS } from './types'
+import { Entry, Box, Location, CernitaSettings, DEFAULT_SETTINGS } from './types'
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -11,6 +11,8 @@ export interface AppState {
   session: Session | null
   user: User | null
   log: Entry[]
+  boxes: Box[]
+  locations: Location[]
   syncStatus: SyncStatus
   settings: CernitaSettings
 }
@@ -19,6 +21,8 @@ const initialState: AppState = {
   session: null,
   user: null,
   log: [],
+  boxes: [],
+  locations: [],
   syncStatus: 'offline',
   settings: DEFAULT_SETTINGS,
 }
@@ -30,6 +34,11 @@ type Action =
   | { type: 'SET_LOG'; entries: Entry[] }
   | { type: 'UPSERT_ENTRY'; entry: Entry }
   | { type: 'DELETE_ENTRY'; id: number }
+  | { type: 'SET_BOXES'; boxes: Box[] }
+  | { type: 'UPSERT_BOX'; box: Box }
+  | { type: 'DELETE_BOX'; id: number }
+  | { type: 'SET_LOCATIONS'; locations: Location[] }
+  | { type: 'UPSERT_LOCATION'; location: Location }
   | { type: 'SET_SYNC'; status: SyncStatus }
   | { type: 'SET_SETTINGS'; settings: CernitaSettings }
 
@@ -50,6 +59,30 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case 'DELETE_ENTRY':
       return { ...state, log: state.log.filter(e => e.id !== action.id) }
+    case 'SET_BOXES':
+      return { ...state, boxes: action.boxes }
+    case 'UPSERT_BOX': {
+      const exists = state.boxes.some(b => b.id === action.box.id)
+      return {
+        ...state,
+        boxes: exists
+          ? state.boxes.map(b => b.id === action.box.id ? action.box : b)
+          : [...state.boxes, action.box],
+      }
+    }
+    case 'DELETE_BOX':
+      return { ...state, boxes: state.boxes.filter(b => b.id !== action.id) }
+    case 'SET_LOCATIONS':
+      return { ...state, locations: action.locations }
+    case 'UPSERT_LOCATION': {
+      const exists = state.locations.some(l => l.id === action.location.id)
+      return {
+        ...state,
+        locations: exists
+          ? state.locations.map(l => l.id === action.location.id ? action.location : l)
+          : [...state.locations, action.location].sort((a, b) => a.sort_order - b.sort_order),
+      }
+    }
     case 'SET_SYNC':
       return { ...state, syncStatus: action.status }
     case 'SET_SETTINGS':
@@ -123,14 +156,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
 async function loadAll(dispatch: React.Dispatch<Action>) {
   dispatch({ type: 'SET_SYNC', status: 'syncing' })
-  const { data, error } = await supabase
-    .from('cernita_entries')
-    .select('*')
-    .order('created_at', { ascending: false })
 
-  if (!error && data) {
-    dispatch({ type: 'SET_LOG', entries: data as Entry[] })
-  }
+  const [entriesRes, boxesRes, locationsRes] = await Promise.all([
+    supabase.from('cernita_entries').select('*').order('created_at', { ascending: false }),
+    supabase.from('cernita_boxes').select('*').order('created_at'),
+    supabase.from('cernita_locations').select('*').order('sort_order'),
+  ])
+
+  if (!entriesRes.error && entriesRes.data)
+    dispatch({ type: 'SET_LOG', entries: entriesRes.data as Entry[] })
+  if (!boxesRes.error && boxesRes.data)
+    dispatch({ type: 'SET_BOXES', boxes: boxesRes.data as Box[] })
+  if (!locationsRes.error && locationsRes.data)
+    dispatch({ type: 'SET_LOCATIONS', locations: locationsRes.data as Location[] })
+
   dispatch({ type: 'SET_SYNC', status: 'online' })
 }
 
@@ -141,17 +180,25 @@ function setupRealtime(dispatch: React.Dispatch<Action>) {
 
   realtimeChannel = supabase
     .channel('cernita-sync')
-    .on(
-      'postgres_changes',
-      { event: '*', schema: 'public', table: 'cernita_entries' },
-      (payload) => {
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          dispatch({ type: 'UPSERT_ENTRY', entry: payload.new as Entry })
-        } else if (payload.eventType === 'DELETE') {
-          dispatch({ type: 'DELETE_ENTRY', id: (payload.old as { id: number }).id })
-        }
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'cernita_entries' }, (payload) => {
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        dispatch({ type: 'UPSERT_ENTRY', entry: payload.new as Entry })
+      } else if (payload.eventType === 'DELETE') {
+        dispatch({ type: 'DELETE_ENTRY', id: (payload.old as { id: number }).id })
       }
-    )
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'cernita_boxes' }, (payload) => {
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        dispatch({ type: 'UPSERT_BOX', box: payload.new as Box })
+      } else if (payload.eventType === 'DELETE') {
+        dispatch({ type: 'DELETE_BOX', id: (payload.old as { id: number }).id })
+      }
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'cernita_locations' }, (payload) => {
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        dispatch({ type: 'UPSERT_LOCATION', location: payload.new as Location })
+      }
+    })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') dispatch({ type: 'SET_SYNC', status: 'online' })
       else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
