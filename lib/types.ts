@@ -27,6 +27,7 @@ export interface Entry {
   survival_risk_it: string | null
   packing_notes: string | null
   packing_notes_it: string | null
+  item_model: string | null
   photo_data: string | null
   bin_id: string | null
   box_id: number | null

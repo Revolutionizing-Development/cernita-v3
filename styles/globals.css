@@ -1538,6 +1538,17 @@ body {
   color: var(--terracotta);
 }
 
+/* ─── Item model label ───────────────────────────────────────────────────── */
+
+.item-model-label {
+  font-size: 11px;
+  font-family: 'Courier New', Courier, monospace;
+  color: var(--ink-soft);
+  letter-spacing: 0.03em;
+  margin-top: -4px;
+  margin-bottom: 10px;
+}
+
 /* ─── Hazmat / shipping restriction banner ───────────────────────────────── */
 
 .hazmat-banner {

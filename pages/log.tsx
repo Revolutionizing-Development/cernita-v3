@@ -535,6 +535,9 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
               <em className="detail-name-it"> · {entry.item_name_it}</em>
             )}
           </h2>
+          {entry.item_model && (
+            <p className="item-model-label" style={{ marginBottom: 4 }}>{entry.item_model}</p>
+          )}
 
           <p className="detail-attribution">
             Evaluated by {entry.user_name} · {timeAgo(entry.created_at)}

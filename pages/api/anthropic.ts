@@ -37,10 +37,13 @@ SHIPPING RESTRICTION RULES — assess international ocean-freight restrictions c
 - Standard household items with no chemical/battery content = "none".
 - When an item is "prohibited", set final_decision to DISPOSE unless the user can clearly ship it via another legal method.
 
+MODEL IDENTIFICATION — inspect the photo and description carefully for brand markings, model numbers, labels, or serial tags. Identifying the exact model significantly improves resale and replacement cost accuracy. Examples: "DeWalt DCS570B 7-1/4 in. Circular Saw", "KitchenAid KSM150PSER Artisan 5-Qt Stand Mixer", "Apple MacBook Pro 14-inch M3 Pro 18GB". Set to null if the item has no meaningful model (e.g. generic towels, loose books, handmade items).
+
 Evaluate this item and return a JSON object with these fields:
 {
   "item_name": "English name",
   "item_name_it": "Italian name",
+  "item_model": "Brand + model name/number string, or null",
   "final_decision": one of KEEP-ITALY|KEEP-US|SELL|DONATE|DISPOSE|GIVE-FAMILY|NEEDS-HUMAN,
   "estimated_resale_value": number or null,
   "replacement_cost": number or null,

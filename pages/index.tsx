@@ -22,6 +22,7 @@ type EvalPhase =
 interface AiResult {
   item_name: string
   item_name_it: string | null
+  item_model: string | null
   final_decision: Decision
   estimated_resale_value: number | null
   replacement_cost: number | null
@@ -264,6 +265,7 @@ export default function EvaluatePage() {
       user_name: userName,
       item_name: aiResult.item_name,
       item_name_it: aiResult.item_name_it,
+      item_model: aiResult.item_model ?? null,
       final_decision: decision,
       user_confirmed: true,
       override_reason: reason ?? null,
@@ -660,6 +662,9 @@ function ResultCard({
             <em className="result-item-name-it"> · {result.item_name_it}</em>
           )}
         </h2>
+        {result.item_model && (
+          <p className="item-model-label">{result.item_model}</p>
+        )}
 
         {/* Economics table */}
         <EconomicsTable result={result} />
