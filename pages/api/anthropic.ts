@@ -75,12 +75,14 @@ ${description ? `Item description: ${description}` : ''}`
       messages,
     })
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : ''
+    const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+    // Strip markdown code fences — Claude sometimes wraps JSON in ```json … ``` despite instructions
+    const text = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
     let result
     try {
       result = JSON.parse(text)
     } catch {
-      console.error('Failed to parse AI JSON response:', text.slice(0, 200))
+      console.error('Failed to parse AI JSON response:', text.slice(0, 300))
       return res.status(500).json({ error: 'AI returned invalid JSON' })
     }
     res.status(200).json(result)
