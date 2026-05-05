@@ -202,6 +202,11 @@ function LocationView({ boxes, locations, log, usDestination, onSelectBox, onNew
     grouped.get(key)!.push(box)
   }
 
+  // Loose items = items not in any box, grouped by their current_location_id
+  function getLooseItems(locId: number | null): Entry[] {
+    return log.filter(e => e.box_id == null && e.current_location_id === locId)
+  }
+
   // Order: known locations by sort_order, then null (unassigned)
   const locationOrder = locations.map(l => l.id)
   const sections: { locationId: number | null; locationName: string; locationNameIt: string | null; boxList: Box[] }[] = []
@@ -240,6 +245,7 @@ function LocationView({ boxes, locations, log, usDestination, onSelectBox, onNew
           const { total } = getBoxWeight(log, b.id)
           return sum + (total ?? 0)
         }, 0)
+        const looseItems = getLooseItems(locationId)
         return (
           <div key={locationId ?? 'unassigned'} className="location-section">
             <div className="location-section-header">
@@ -250,6 +256,7 @@ function LocationView({ boxes, locations, log, usDestination, onSelectBox, onNew
               <span className="location-section-meta">
                 {boxList.length} box{boxList.length !== 1 ? 'es' : ''}
                 {totalWeight > 0 && ` · ~${totalWeight.toFixed(0)} lb`}
+                {looseItems.length > 0 && ` · ${looseItems.length} loose`}
               </span>
             </div>
             {boxList.map(box => (
@@ -261,9 +268,45 @@ function LocationView({ boxes, locations, log, usDestination, onSelectBox, onNew
                 onClick={() => onSelectBox(box)}
               />
             ))}
+            {looseItems.length > 0 && (
+              <div className="loose-items-group">
+                <p className="loose-items-label">◻ Loose items · Non inscatolati</p>
+                {looseItems.map(e => (
+                  <div key={e.id} className="loose-item-row">
+                    <span className="loose-item-name">{e.item_name}</span>
+                    {e.item_name_it && <span className="loose-item-name-it"> · {e.item_name_it}</span>}
+                    {e.weight_lb != null && <span className="loose-item-weight">{e.weight_lb} lb</span>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )
       })}
+
+      {/* Unlocated loose items — no box, no location */}
+      {(() => {
+        const unlocated = log.filter(e => e.box_id == null && e.current_location_id == null)
+        if (unlocated.length === 0) return null
+        return (
+          <div className="location-section">
+            <div className="location-section-header">
+              <span className="location-section-name">Unlocated · Senza posizione</span>
+              <span className="location-section-meta">{unlocated.length} loose</span>
+            </div>
+            <div className="loose-items-group">
+              <p className="loose-items-label">◻ Not in a box or location</p>
+              {unlocated.map(e => (
+                <div key={e.id} className="loose-item-row">
+                  <span className="loose-item-name">{e.item_name}</span>
+                  {e.item_name_it && <span className="loose-item-name-it"> · {e.item_name_it}</span>}
+                  {e.weight_lb != null && <span className="loose-item-weight">{e.weight_lb} lb</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

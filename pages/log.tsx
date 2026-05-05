@@ -5,7 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Entry, Box, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, CernitaSettings } from '../lib/types'
+import { Entry, Box, Location, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, CernitaSettings } from '../lib/types'
 import { exportCSV } from '../lib/exportCsv'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@ const ALL_DECISIONS: Decision[] = [
 
 export default function LogPage() {
   const { state, dispatch } = useApp()
-  const { log: entries, boxes, settings, user } = state
+  const { log: entries, boxes, locations, settings, user } = state
 
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
@@ -92,6 +92,7 @@ export default function LogPage() {
   const filtered = (() => {
     let result = activeFilters.size === 0 ? entries : entries.filter(e => {
       if (activeFilters.has('OUTDATED') && isOutdated(e, settings)) return true
+      if (activeFilters.has('UNBOXED') && e.box_id == null) return true
       if (activeFilters.has(e.final_decision)) return true
       return false
     })
@@ -113,6 +114,7 @@ export default function LogPage() {
   }, {} as Record<Decision, number>)
 
   const outdatedCount = entries.filter(e => isOutdated(e, settings)).length
+  const unboxedCount  = entries.filter(e => e.box_id == null).length
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -210,6 +212,15 @@ export default function LogPage() {
                   <span className="filter-pill-count">{outdatedCount}</span>
                 </button>
               )}
+              {unboxedCount > 0 && (
+                <button
+                  className={`filter-pill filter-pill-unboxed ${activeFilters.has('UNBOXED') ? 'active' : ''}`}
+                  onClick={() => toggleFilter('UNBOXED')}
+                >
+                  ◻ Unboxed
+                  <span className="filter-pill-count">{unboxedCount}</span>
+                </button>
+              )}
             </div>
           )}
 
@@ -241,6 +252,7 @@ export default function LogPage() {
             entry={selectedEntry}
             settings={settings}
             boxes={boxes}
+            locations={locations}
             currentUser={user?.user_metadata?.display_name ?? user?.email?.split('@')[0] ?? 'you'}
             onClose={() => setSelectedEntry(null)}
             onSaved={(updated) => {
@@ -340,10 +352,11 @@ function EntryRow({ entry, outdated, onClick }: {
 
 // ─── DetailOverlay ────────────────────────────────────────────────────────────
 
-function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, onDeleted }: {
+function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose, onSaved, onDeleted }: {
   entry: Entry
   settings: CernitaSettings
   boxes: Box[]
+  locations: Location[]
   currentUser: string
   onClose: () => void
   onSaved: (e: Entry) => void
@@ -362,6 +375,10 @@ function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, 
   // Box assignment state
   const [selectedBoxId, setSelectedBoxId] = useState<number | null | ''>(entry.box_id ?? null)
   const [savingBox, setSavingBox] = useState(false)
+
+  // Location state (for loose items not in a box)
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null | ''>(entry.current_location_id ?? null)
+  const [savingLocation, setSavingLocation] = useState(false)
 
   // ── Save override ──────────────────────────────────────────────────────────
   async function handleOverrideSave() {
@@ -439,6 +456,22 @@ function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, 
       .select()
       .single()
     setSavingBox(false)
+    if (err || !data) { setError('Save failed — try again.'); return }
+    onSaved(data as Entry)
+  }
+
+  // ── Location assignment ───────────────────────────────────────────────────
+  async function handleLocationSave() {
+    setSavingLocation(true)
+    setError('')
+    const newLocId = selectedLocationId === '' ? null : (selectedLocationId as number | null)
+    const { data, error: err } = await supabase
+      .from('cernita_entries')
+      .update({ current_location_id: newLocId })
+      .eq('id', entry.id)
+      .select()
+      .single()
+    setSavingLocation(false)
     if (err || !data) { setError('Save failed — try again.'); return }
     onSaved(data as Entry)
   }
@@ -644,6 +677,48 @@ function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, 
                   disabled={savingBox || selectedBoxId === (entry.box_id ?? null)}
                 >
                   {savingBox ? '…' : 'Assign · Assegna'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Location (for loose items) */}
+          {locations.length > 0 && (
+            <div className="box-assign-section">
+              <p className="box-assign-label">
+                Location · <em className="italic ink-soft" style={{ fontSize: 12 }}>Posizione</em>
+                {entry.box_id == null && (
+                  <span className="filter-pill filter-pill-unboxed" style={{ marginLeft: 8, padding: '1px 7px', fontSize: 10, verticalAlign: 'middle' }}>
+                    ◻ Unboxed
+                  </span>
+                )}
+              </p>
+              {entry.current_location_id ? (
+                <p className="box-assign-current">
+                  Currently at <strong>{locations.find(l => l.id === entry.current_location_id)?.name ?? `#${entry.current_location_id}`}</strong>
+                </p>
+              ) : (
+                <p className="box-assign-current ink-soft" style={{ fontStyle: 'italic' }}>No location set · Posizione non impostata</p>
+              )}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <select
+                  className="input"
+                  style={{ flex: 1, fontSize: 13, padding: '8px 10px' }}
+                  value={selectedLocationId === null ? '' : selectedLocationId}
+                  onChange={e => setSelectedLocationId(e.target.value === '' ? null : Number(e.target.value))}
+                >
+                  <option value="">— Unlocated —</option>
+                  {locations.map(l => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+                <button
+                  className="btn-secondary"
+                  style={{ whiteSpace: 'nowrap', padding: '8px 14px', fontSize: 13 }}
+                  onClick={handleLocationSave}
+                  disabled={savingLocation || selectedLocationId === (entry.current_location_id ?? null)}
+                >
+                  {savingLocation ? '…' : 'Set · Imposta'}
                 </button>
               </div>
             </div>

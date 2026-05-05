@@ -1467,6 +1467,54 @@ body {
   margin-top: 8px;
 }
 
+/* ─── Unboxed filter pill ────────────────────────────────────────────────── */
+
+.filter-pill-unboxed {
+  background: #f0ebe1;
+  color: var(--ink-soft);
+  border-color: var(--paper-dark);
+}
+
+.filter-pill-unboxed.active {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
+}
+
+/* ─── Loose items (bins location view) ──────────────────────────────────── */
+
+.loose-items-group {
+  margin: 6px 0 10px;
+  border: 1px dashed var(--paper-dark);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  background: var(--paper);
+}
+
+.loose-items-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.loose-item-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--paper-dark);
+  font-size: 13px;
+}
+
+.loose-item-row:last-child { border-bottom: none; }
+
+.loose-item-name  { color: var(--ink); flex: 1; }
+.loose-item-name-it { color: var(--ink-soft); font-style: italic; font-size: 12px; }
+.loose-item-weight { color: var(--ink-soft); font-size: 11px; flex-shrink: 0; }
+
 /* ─── Trips page ─────────────────────────────────────────────────────────── */
 
 .trips-section-title {
