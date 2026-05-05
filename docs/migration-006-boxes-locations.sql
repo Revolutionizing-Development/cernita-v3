@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS cernita_locations (
 CREATE INDEX IF NOT EXISTS idx_cernita_locations_sort
   ON cernita_locations (sort_order);
 
+-- Unique index on name — required for the ON CONFLICT (name) seed below
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cernita_locations_name
+  ON cernita_locations (name);
+
 ALTER TABLE cernita_locations ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "authenticated_access" ON cernita_locations;
