@@ -287,6 +287,27 @@ body {
   transition: opacity 0.3s;
 }
 
+/* Camera flip button */
+.camera-flip-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.45);
+  color: white;
+  border: none;
+  font-size: 22px;
+  line-height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.camera-flip-btn:active { background: rgba(0,0,0,0.65); }
+
 /* Thinking overlay — sits on top of the dimmed camera */
 .thinking-overlay {
   position: absolute;

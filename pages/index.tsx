@@ -95,6 +95,7 @@ export default function EvaluatePage() {
   // Override overlay state
   const [overrideDecision, setOverrideDecision] = useState<Decision>('NEEDS-HUMAN')
   const [overrideReason, setOverrideReason] = useState('')
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -102,23 +103,31 @@ export default function EvaluatePage() {
 
   // ─── Camera management ─────────────────────────────────────────────────────
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (facing: 'environment' | 'user' = 'environment') => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraBlocked(true)
       setPhase('text')
       return
     }
     try {
+      // Try exact facing mode first (hard requirement — no silent fallback to selfie)
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: { exact: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
       })
       streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-      }
+      if (videoRef.current) videoRef.current.srcObject = stream
     } catch {
-      setCameraBlocked(true)
-      setPhase('text')
+      try {
+        // Device may not support exact constraint — try as a preference
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
+        })
+        streamRef.current = stream
+        if (videoRef.current) videoRef.current.srcObject = stream
+      } catch {
+        setCameraBlocked(true)
+        setPhase('text')
+      }
     }
   }, [])
 
@@ -128,9 +137,16 @@ export default function EvaluatePage() {
     if (videoRef.current) videoRef.current.srcObject = null
   }, [])
 
+  async function handleFlipCamera() {
+    stopCamera()
+    const next = facingMode === 'environment' ? 'user' : 'environment'
+    setFacingMode(next)
+    await startCamera(next)
+  }
+
   // Start camera when phase becomes 'camera'
   useEffect(() => {
-    if (phase === 'camera') startCamera()
+    if (phase === 'camera') startCamera(facingMode)
     // Don't auto-stop: stopCamera is called explicitly on evaluate/navigate
   }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -336,6 +352,16 @@ export default function EvaluatePage() {
               className="camera-preview"
               style={{ opacity: phase === 'thinking' ? 0.25 : 1 }}
             />
+            {phase === 'camera' && (
+              <button
+                className="camera-flip-btn"
+                onClick={handleFlipCamera}
+                aria-label="Flip camera"
+                title="Flip camera"
+              >
+                ⟳
+              </button>
+            )}
             {phase === 'thinking' && (
               <div className="thinking-overlay">
                 <ThinkingContent onCancel={handleCancel} />
