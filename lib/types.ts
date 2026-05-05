@@ -35,26 +35,42 @@ export interface Entry {
 
 export type Decision =
   | 'KEEP-ITALY'
-  | 'KEEP-TEXAS'
+  | 'KEEP-US'       // intermediate US stop — city configured in Settings
   | 'SELL'
   | 'DONATE'
   | 'DISPOSE'
   | 'GIVE-FAMILY'
   | 'NEEDS-HUMAN'
 
+// Static fallback labels — KEEP-US display label is overridden dynamically
+// by getDecisionLabel() which uses the configured usDestination.
 export const DECISION_LABELS: Record<Decision, { en: string; it: string }> = {
-  'KEEP-ITALY':  { en: 'Keep — ship to Italy', it: 'Porta in Italia' },
-  'KEEP-TEXAS':  { en: 'Keep — move to Texas', it: 'Porta in Texas' },
-  'SELL':        { en: 'Sell', it: 'Vendi' },
-  'DONATE':      { en: 'Donate', it: 'Dona' },
-  'DISPOSE':     { en: 'Dispose', it: 'Smaltisci' },
-  'GIVE-FAMILY': { en: 'Give to family', it: 'Dai alla famiglia' },
-  'NEEDS-HUMAN': { en: 'Needs discussion', it: 'Richiede discussione' },
+  'KEEP-ITALY':  { en: 'Keep — ship to Italy',    it: 'Porta in Italia' },
+  'KEEP-US':     { en: 'Keep — US stop',           it: 'Porta negli USA' },
+  'SELL':        { en: 'Sell',                     it: 'Vendi' },
+  'DONATE':      { en: 'Donate',                   it: 'Dona' },
+  'DISPOSE':     { en: 'Dispose',                  it: 'Smaltisci' },
+  'GIVE-FAMILY': { en: 'Give to family',           it: 'Dai alla famiglia' },
+  'NEEDS-HUMAN': { en: 'Needs discussion',         it: 'Richiede discussione' },
+}
+
+// Returns a decision label, substituting the configured US city for KEEP-US.
+export function getDecisionLabel(
+  decision: Decision,
+  usDestination = 'Colorado Springs'
+): { en: string; it: string } {
+  if (decision === 'KEEP-US') {
+    return {
+      en: `Keep — move to ${usDestination}`,
+      it: `Porta a ${usDestination}`,
+    }
+  }
+  return DECISION_LABELS[decision]
 }
 
 export const DECISION_BADGE_CLASS: Record<Decision, string> = {
   'KEEP-ITALY':  'badge badge-keep-italy',
-  'KEEP-TEXAS':  'badge badge-keep-texas',
+  'KEEP-US':     'badge badge-keep-us',
   'SELL':        'badge badge-sell',
   'DONATE':      'badge badge-donate',
   'DISPOSE':     'badge badge-dispose',
@@ -63,21 +79,29 @@ export const DECISION_BADGE_CLASS: Record<Decision, string> = {
 }
 
 export interface CernitaSettings {
+  // Move route
+  usDestination: string        // the intermediate US city (e.g. "Colorado Springs")
+  // Storage
   storageRatePerCuFt: number
+  monthsInStorage: number
+  // Ocean shipping
   shippingRatePerLb: number
   shippingRatePerCuFt: number
-  monthsInStorage: number
+  // Weight thresholds
   weightSoftThresholdLb: number
   weightHardThresholdLb: number
+  // AI
   aiModel: string
+  // Rule versioning (bumped when rates change)
   rulesVersion: string
 }
 
 export const DEFAULT_SETTINGS: CernitaSettings = {
+  usDestination: 'Colorado Springs',
   storageRatePerCuFt: 2.50,
+  monthsInStorage: 18,
   shippingRatePerLb: 0.75,
   shippingRatePerCuFt: 4.00,
-  monthsInStorage: 18,
   weightSoftThresholdLb: 50,
   weightHardThresholdLb: 70,
   aiModel: 'claude-sonnet-4-5',

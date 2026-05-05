@@ -5,7 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Decision, DECISION_LABELS, DECISION_BADGE_CLASS } from '../lib/types'
+import { Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel } from '../lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,7 +44,7 @@ interface AiResult {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const VALID_DECISIONS: Decision[] = [
-  'KEEP-ITALY', 'KEEP-TEXAS', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'NEEDS-HUMAN',
+  'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'NEEDS-HUMAN',
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -418,6 +418,7 @@ export default function EvaluatePage() {
             result={aiResult}
             saving={phase === 'saving'}
             errorMsg={errorMsg}
+            usDestination={settings.usDestination}
             onConfirm={() => saveEntry(aiResult.final_decision)}
             onOverride={() => {
               setOverrideDecision(aiResult.final_decision)
@@ -431,6 +432,7 @@ export default function EvaluatePage() {
           <OverrideOverlay
             current={overrideDecision}
             reason={overrideReason}
+            usDestination={settings.usDestination}
             onChange={setOverrideDecision}
             onReasonChange={setOverrideReason}
             onCancel={() => setPhase('result')}
@@ -475,17 +477,19 @@ function ResultCard({
   result,
   saving,
   errorMsg,
+  usDestination,
   onConfirm,
   onOverride,
 }: {
   result: AiResult
   saving: boolean
   errorMsg: string
+  usDestination: string
   onConfirm: () => void
   onOverride: () => void
 }) {
-  const label = DECISION_LABELS[result.final_decision] ?? { en: result.final_decision, it: '' }
-  const badgeClass = DECISION_BADGE_CLASS[result.final_decision] ?? 'badge'
+  const label = getDecisionLabel(result.final_decision as Decision, usDestination)
+  const badgeClass = DECISION_BADGE_CLASS[result.final_decision as Decision] ?? 'badge'
   const showPreservation = result.fragility && result.fragility !== 'none'
   const confidence = result.confidence ?? 'medium'
 
@@ -664,6 +668,7 @@ function Em({ children }: { children: React.ReactNode }) {
 function OverrideOverlay({
   current,
   reason,
+  usDestination,
   onChange,
   onReasonChange,
   onCancel,
@@ -671,6 +676,7 @@ function OverrideOverlay({
 }: {
   current: Decision
   reason: string
+  usDestination: string
   onChange: (d: Decision) => void
   onReasonChange: (r: string) => void
   onCancel: () => void
@@ -688,11 +694,12 @@ function OverrideOverlay({
           onChange={e => onChange(e.target.value as Decision)}
           style={{ marginBottom: 16 }}
         >
-          {VALID_DECISIONS.map(d => (
-            <option key={d} value={d}>
-              {DECISION_LABELS[d].en} · {DECISION_LABELS[d].it}
-            </option>
-          ))}
+          {VALID_DECISIONS.map(d => {
+            const lbl = getDecisionLabel(d, usDestination)
+            return (
+              <option key={d} value={d}>{lbl.en} · {lbl.it}</option>
+            )
+          })}
         </select>
 
         <label className="input-label">Reason (optional) · Motivo</label>

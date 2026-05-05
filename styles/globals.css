@@ -172,7 +172,8 @@ body {
   text-transform: uppercase;
 }
 .badge-keep-italy { background: var(--olive); color: var(--paper); }
-.badge-keep-texas { background: var(--olive-soft); color: var(--ink); }
+.badge-keep-us,
+.badge-keep-texas { background: var(--olive-soft); color: var(--ink); } /* keep-texas alias for old DB rows */
 .badge-sell { background: var(--terracotta); color: white; }
 .badge-donate { background: var(--ink-soft); color: white; }
 .badge-dispose { background: var(--ink); color: white; }
@@ -576,6 +577,23 @@ body {
   font-size: 22px;
   font-weight: 400;
   margin-bottom: 20px;
+}
+
+/* ── Settings page ─────────────────────────────────────────────────────────── */
+
+.settings-hint {
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.settings-version {
+  margin-top: 24px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-align: center;
+  letter-spacing: 0.04em;
 }
 
 /* ── Log page ──────────────────────────────────────────────────────────────── */

@@ -5,7 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Entry, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, CernitaSettings } from '../lib/types'
+import { Entry, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel, CernitaSettings } from '../lib/types'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ function isOutdated(entry: Entry, settings: CernitaSettings): boolean {
 }
 
 const ALL_DECISIONS: Decision[] = [
-  'KEEP-ITALY', 'KEEP-TEXAS', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'NEEDS-HUMAN',
+  'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'NEEDS-HUMAN',
 ]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -129,7 +129,7 @@ export default function LogPage() {
               <span className="log-summary-breakdown">
                 {ALL_DECISIONS.filter(d => counts[d] > 0).map(d => (
                   <span key={d} className="log-summary-chip">
-                    {counts[d]} {DECISION_LABELS[d].it}
+                    {counts[d]} {getDecisionLabel(d, settings.usDestination).it}
                   </span>
                 ))}
               </span>
@@ -145,16 +145,20 @@ export default function LogPage() {
               >
                 All
               </button>
-              {ALL_DECISIONS.filter(d => counts[d] > 0).map(d => (
-                <button
-                  key={d}
-                  className={`filter-pill ${activeFilters.has(d) ? 'active' : ''}`}
-                  onClick={() => toggleFilter(d)}
-                >
-                  {DECISION_LABELS[d].en.split('—').pop()?.trim() ?? DECISION_LABELS[d].en}
-                  <span className="filter-pill-count">{counts[d]}</span>
-                </button>
-              ))}
+              {ALL_DECISIONS.filter(d => counts[d] > 0).map(d => {
+                const lbl = getDecisionLabel(d, settings.usDestination)
+                const short = lbl.en.split('—').pop()?.trim() ?? lbl.en
+                return (
+                  <button
+                    key={d}
+                    className={`filter-pill ${activeFilters.has(d) ? 'active' : ''}`}
+                    onClick={() => toggleFilter(d)}
+                  >
+                    {short}
+                    <span className="filter-pill-count">{counts[d]}</span>
+                  </button>
+                )
+              })}
               {outdatedCount > 0 && (
                 <button
                   className={`filter-pill filter-pill-outdated ${activeFilters.has('OUTDATED') ? 'active' : ''}`}
@@ -382,7 +386,7 @@ function DetailOverlay({ entry, settings, currentUser, onClose, onSaved, onDelet
     onDeleted(entry.id)
   }
 
-  const label = DECISION_LABELS[entry.final_decision] ?? { en: entry.final_decision, it: '' }
+  const label = getDecisionLabel(entry.final_decision as Decision, settings.usDestination)
   const badgeClass = DECISION_BADGE_CLASS[entry.final_decision as Decision] ?? 'badge'
   const showPreservation = entry.fragility && entry.fragility !== 'none'
   const newCosts = outdated ? recomputeCosts(entry, settings) : null
@@ -534,11 +538,10 @@ function DetailOverlay({ entry, settings, currentUser, onClose, onSaved, onDelet
                 onChange={e => setOverrideDecision(e.target.value as Decision)}
                 style={{ marginBottom: 12 }}
               >
-                {ALL_DECISIONS.map(d => (
-                  <option key={d} value={d}>
-                    {DECISION_LABELS[d].en} · {DECISION_LABELS[d].it}
-                  </option>
-                ))}
+                {ALL_DECISIONS.map(d => {
+                  const lbl = getDecisionLabel(d, settings.usDestination)
+                  return <option key={d} value={d}>{lbl.en} · {lbl.it}</option>
+                })}
               </select>
 
               <label className="input-label">Reason · Motivo</label>

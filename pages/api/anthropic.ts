@@ -12,18 +12,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { photoBase64, description, settings } = req.body
 
-  const prompt = `You are helping evaluate household items for an international move from Illinois to Italy.
+  const usStop = settings.usDestination || 'Colorado Springs'
+
+  const prompt = `You are helping evaluate household items for an international move from Illinois to Italy, with an intermediate stop in ${usStop}.
 
 Rules in effect:
-- Storage: $${settings.storageRatePerCuFt}/cu ft/month for ${settings.monthsInStorage} months
-- Ocean shipping: $${settings.shippingRatePerLb}/lb + $${settings.shippingRatePerCuFt}/cu ft
+- Storage in ${usStop}: $${settings.storageRatePerCuFt}/cu ft/month for ${settings.monthsInStorage} months
+- Ocean shipping (${usStop} → Italy): $${settings.shippingRatePerLb}/lb + $${settings.shippingRatePerCuFt}/cu ft
 - Carry-on: free (no additional cost)
+
+Decision codes:
+- KEEP-ITALY: ship to Italy in the ocean container
+- KEEP-US: stays in ${usStop} (not going to Italy, at least not now)
+- SELL: sell before the move
+- DONATE: donate locally
+- DISPOSE: trash, recycling, or hazmat
+- GIVE-FAMILY: give to a family member via trip or suitcase
+- NEEDS-HUMAN: no clear AI recommendation; both partners need to discuss
 
 Evaluate this item and return a JSON object with these fields:
 {
   "item_name": "English name",
   "item_name_it": "Italian name",
-  "final_decision": one of KEEP-ITALY|KEEP-TEXAS|SELL|DONATE|DISPOSE|GIVE-FAMILY|NEEDS-HUMAN,
+  "final_decision": one of KEEP-ITALY|KEEP-US|SELL|DONATE|DISPOSE|GIVE-FAMILY|NEEDS-HUMAN,
   "estimated_resale_value": number or null,
   "replacement_cost": number or null,
   "weight_lb": number or null,
