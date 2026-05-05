@@ -39,6 +39,9 @@ interface AiResult {
   survival_risk_it: string | null
   packing_notes: string | null
   packing_notes_it: string | null
+  shipping_restriction: 'none' | 'restricted' | 'prohibited' | null
+  shipping_restriction_note: string | null
+  shipping_restriction_note_it: string | null
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -287,6 +290,9 @@ export default function EvaluatePage() {
       bin_id: null,
       box_id: null,
       current_location_id: null,
+      shipping_restriction: aiResult.shipping_restriction ?? null,
+      shipping_restriction_note: aiResult.shipping_restriction_note ?? null,
+      shipping_restriction_note_it: aiResult.shipping_restriction_note_it ?? null,
     }
 
     const { data, error } = await supabase
@@ -616,10 +622,28 @@ function ResultCard({
   const badgeClass = DECISION_BADGE_CLASS[result.final_decision as Decision] ?? 'badge'
   const showPreservation = result.fragility && result.fragility !== 'none'
   const confidence = result.confidence ?? 'medium'
+  const restriction = result.shipping_restriction
 
   return (
     <div className="result-shell">
       <div className="result-card">
+
+        {/* Shipping restriction banner — shown prominently above everything else */}
+        {restriction && restriction !== 'none' && (
+          <div className={`hazmat-banner hazmat-${restriction}`}>
+            <span className="hazmat-icon">{restriction === 'prohibited' ? '🚫' : '⚠️'}</span>
+            <div className="hazmat-body">
+              <p className="hazmat-title">
+                {restriction === 'prohibited'
+                  ? 'Cannot ship internationally · Non spedibile'
+                  : 'Shipping restricted · Restrizioni di spedizione'}
+              </p>
+              {result.shipping_restriction_note && (
+                <p className="hazmat-note">{result.shipping_restriction_note}</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Decision */}
         <div className="result-decision-row">

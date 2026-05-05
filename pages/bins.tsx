@@ -5,7 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Box, Location, Entry, Decision, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel } from '../lib/types'
+import { Box, Location, Entry, Decision, CernitaSettings, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, STORAGE_REQUIREMENT_LABELS, getDecisionLabel } from '../lib/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -137,6 +137,7 @@ export default function BinsPage() {
               boxes={boxes}
               locations={locations}
               log={log}
+              settings={settings}
               usDestination={settings.usDestination}
               onSelectBox={setSelectedBox}
               onNewBox={() => setShowNewBox(true)}
@@ -186,10 +187,11 @@ export default function BinsPage() {
 
 // ─── LocationView ─────────────────────────────────────────────────────────────
 
-function LocationView({ boxes, locations, log, usDestination, onSelectBox, onNewBox }: {
+function LocationView({ boxes, locations, log, settings, usDestination, onSelectBox, onNewBox }: {
   boxes: Box[]
   locations: Location[]
   log: Entry[]
+  settings: CernitaSettings
   usDestination: string
   onSelectBox: (b: Box) => void
   onNewBox: () => void
@@ -269,16 +271,7 @@ function LocationView({ boxes, locations, log, usDestination, onSelectBox, onNew
               />
             ))}
             {looseItems.length > 0 && (
-              <div className="loose-items-group">
-                <p className="loose-items-label">◻ Loose items · Non inscatolati</p>
-                {looseItems.map(e => (
-                  <div key={e.id} className="loose-item-row">
-                    <span className="loose-item-name">{e.item_name}</span>
-                    {e.item_name_it && <span className="loose-item-name-it"> · {e.item_name_it}</span>}
-                    {e.weight_lb != null && <span className="loose-item-weight">{e.weight_lb} lb</span>}
-                  </div>
-                ))}
-              </div>
+              <LooseItemsGroup items={looseItems} settings={settings} />
             )}
           </div>
         )
@@ -294,19 +287,58 @@ function LocationView({ boxes, locations, log, usDestination, onSelectBox, onNew
               <span className="location-section-name">Unlocated · Senza posizione</span>
               <span className="location-section-meta">{unlocated.length} loose</span>
             </div>
-            <div className="loose-items-group">
-              <p className="loose-items-label">◻ Not in a box or location</p>
-              {unlocated.map(e => (
-                <div key={e.id} className="loose-item-row">
-                  <span className="loose-item-name">{e.item_name}</span>
-                  {e.item_name_it && <span className="loose-item-name-it"> · {e.item_name_it}</span>}
-                  {e.weight_lb != null && <span className="loose-item-weight">{e.weight_lb} lb</span>}
-                </div>
-              ))}
-            </div>
+            <LooseItemsGroup items={unlocated} settings={settings} />
           </div>
         )
       })()}
+    </div>
+  )
+}
+
+// ─── LooseItemsGroup ──────────────────────────────────────────────────────────
+
+function LooseItemsGroup({ items, settings }: { items: Entry[]; settings: CernitaSettings }) {
+  const knownWeight = items.filter(e => e.weight_lb != null)
+  const knownVol    = items.filter(e => e.volume_cuft != null)
+  const totalWeight = knownWeight.reduce((s, e) => s + (e.weight_lb ?? 0), 0)
+  const totalVol    = knownVol.reduce((s, e) => s + (e.volume_cuft ?? 0), 0)
+  const estShipCost = totalWeight * settings.shippingRatePerLb + totalVol * settings.shippingRatePerCuFt
+  const hasRestriction = items.some(e => e.shipping_restriction && e.shipping_restriction !== 'none')
+
+  return (
+    <div className="loose-items-group">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+        <p className="loose-items-label">◻ Loose items · Non inscatolati</p>
+        {hasRestriction && <span style={{ fontSize: 11, color: 'var(--terracotta)' }}>⚠ restrictions</span>}
+      </div>
+      {items.map(e => (
+        <div key={e.id} className="loose-item-row">
+          {e.shipping_restriction === 'prohibited' && <span style={{ fontSize: 12, marginRight: 4 }}>🚫</span>}
+          {e.shipping_restriction === 'restricted'  && <span style={{ fontSize: 12, marginRight: 4 }}>⚠️</span>}
+          <span className="loose-item-name">{e.item_name}</span>
+          {e.item_name_it && <span className="loose-item-name-it"> · {e.item_name_it}</span>}
+          <span className="loose-item-meta">
+            {e.weight_lb != null && `${e.weight_lb} lb`}
+            {e.weight_lb != null && e.volume_cuft != null && ' · '}
+            {e.volume_cuft != null && `${e.volume_cuft} cu ft`}
+          </span>
+        </div>
+      ))}
+      {(knownWeight.length > 0 || knownVol.length > 0) && (
+        <div className="loose-items-totals">
+          {knownWeight.length > 0 && (
+            <span>~{totalWeight.toFixed(1)} lb total</span>
+          )}
+          {knownVol.length > 0 && (
+            <span>{totalVol.toFixed(2)} cu ft total</span>
+          )}
+          {estShipCost > 0 && (
+            <span className="loose-items-ship-cost">
+              ~${estShipCost.toFixed(0)} est. ship
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -413,6 +445,12 @@ function BoxCard({ box, log, usDestination, onClick }: {
           <> · <span style={{ color: 'var(--ink-soft)' }}>? lb</span></>
         )}
         {isSuitcase && <> · <span className="ink-soft">{weightLimit} lb limit</span></>}
+        {box.storage_requirement === 'climate_controlled' && (
+          <> · <span style={{ color: 'var(--olive)', fontWeight: 600 }}>❄ climate</span></>
+        )}
+        {box.storage_requirement === 'garage_ok' && (
+          <> · <span style={{ color: 'var(--ink-soft)' }}>🏠 garage ok</span></>
+        )}
       </div>
 
       {/* Weight bar */}
@@ -447,6 +485,9 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
 
   const [locationId, setLocationId] = useState<number | null>(box.current_location_id)
   const [notes, setNotes] = useState(box.notes ?? '')
+  const [storageReq, setStorageReq] = useState<'climate_controlled' | 'standard' | 'garage_ok'>(
+    (box.storage_requirement as 'climate_controlled' | 'standard' | 'garage_ok') ?? 'standard'
+  )
   const [saving, setSaving] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [error, setError] = useState('')
@@ -456,7 +497,7 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
     setError('')
     const { data, error: err } = await supabase
       .from('cernita_boxes')
-      .update({ current_location_id: locationId, notes: notes || null })
+      .update({ current_location_id: locationId, notes: notes || null, storage_requirement: storageReq })
       .eq('id', box.id)
       .select()
       .single()
@@ -538,6 +579,22 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
               </option>
             ))}
           </select>
+
+          {/* Storage requirement */}
+          <label className="input-label" style={{ marginTop: 4 }}>Storage requirement · Requisiti di stoccaggio</label>
+          <select
+            className="input"
+            value={storageReq}
+            onChange={e => setStorageReq(e.target.value as typeof storageReq)}
+            style={{ marginBottom: 6 }}
+          >
+            {(Object.entries(STORAGE_REQUIREMENT_LABELS) as [keyof typeof STORAGE_REQUIREMENT_LABELS, typeof STORAGE_REQUIREMENT_LABELS[keyof typeof STORAGE_REQUIREMENT_LABELS]][]).map(([key, lbl]) => (
+              <option key={key} value={key}>{lbl.en} · {lbl.it}</option>
+            ))}
+          </select>
+          <p className="settings-hint" style={{ marginBottom: 14 }}>
+            {STORAGE_REQUIREMENT_LABELS[storageReq]?.hint}
+          </p>
 
           {/* Notes */}
           <label className="input-label">Notes · Note</label>
@@ -622,6 +679,7 @@ function NewBoxOverlay({ boxes, locations, usDestination, onClose, onCreated }: 
   const [locationId, setLocationId] = useState<number | null>(
     locations.find(l => l.name === 'Galesburg house')?.id ?? locations[0]?.id ?? null
   )
+  const [storageReq, setStorageReq] = useState<'climate_controlled' | 'standard' | 'garage_ok'>('standard')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -636,6 +694,7 @@ function NewBoxOverlay({ boxes, locations, usDestination, onClose, onCreated }: 
         box_number: boxNumber,
         destination,
         current_location_id: locationId,
+        storage_requirement: storageReq,
       })
       .select()
       .single()
@@ -668,6 +727,19 @@ function NewBoxOverlay({ boxes, locations, usDestination, onClose, onCreated }: 
             return <option key={d} value={d}>{lbl.en} · {lbl.it}</option>
           })}
         </select>
+
+        <label className="input-label">Storage requirement · Requisiti di stoccaggio</label>
+        <select
+          className="input"
+          value={storageReq}
+          onChange={e => setStorageReq(e.target.value as typeof storageReq)}
+          style={{ marginBottom: 4 }}
+        >
+          {(Object.entries(STORAGE_REQUIREMENT_LABELS) as [keyof typeof STORAGE_REQUIREMENT_LABELS, typeof STORAGE_REQUIREMENT_LABELS[keyof typeof STORAGE_REQUIREMENT_LABELS]][]).map(([key, lbl]) => (
+            <option key={key} value={key}>{lbl.en} · {lbl.it}</option>
+          ))}
+        </select>
+        <p className="settings-hint" style={{ marginBottom: 14 }}>{STORAGE_REQUIREMENT_LABELS[storageReq]?.hint}</p>
 
         <label className="input-label">Starting location · Posizione iniziale</label>
         <select

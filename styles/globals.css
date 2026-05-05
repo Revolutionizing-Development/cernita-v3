@@ -1515,6 +1515,74 @@ body {
 .loose-item-name-it { color: var(--ink-soft); font-style: italic; font-size: 12px; }
 .loose-item-weight { color: var(--ink-soft); font-size: 11px; flex-shrink: 0; }
 
+.loose-item-meta {
+  color: var(--ink-soft);
+  font-size: 11px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.loose-items-totals {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1px solid var(--paper-dark);
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.loose-items-ship-cost {
+  color: var(--terracotta);
+}
+
+/* ─── Hazmat / shipping restriction banner ───────────────────────────────── */
+
+.hazmat-banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+
+.hazmat-banner.hazmat-prohibited {
+  background: #fdf0f0;
+  border: 1px solid #f5c6c6;
+}
+
+.hazmat-banner.hazmat-restricted {
+  background: #fffbea;
+  border: 1px solid #fde68a;
+}
+
+.hazmat-icon { font-size: 20px; flex-shrink: 0; line-height: 1.3; }
+
+.hazmat-body { flex: 1; }
+
+.hazmat-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.hazmat-banner.hazmat-prohibited .hazmat-title { color: #8b1a1a; }
+.hazmat-banner.hazmat-restricted .hazmat-title { color: #7a5c00; }
+
+.hazmat-note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
+/* Hazmat badges in entry row */
+.badge-hazmat      { font-size: 14px; line-height: 1; }
+.badge-hazmat-warn { font-size: 14px; line-height: 1; }
+
 /* ─── Trips page ─────────────────────────────────────────────────────────── */
 
 .trips-section-title {

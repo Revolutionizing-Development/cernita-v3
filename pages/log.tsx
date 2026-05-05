@@ -334,6 +334,8 @@ function EntryRow({ entry, outdated, onClick }: {
           <div className="entry-badges">
             {outdated && <span className="badge-outdated">⟳</span>}
             {entry.override_reason && <span className="badge-override">↩</span>}
+            {entry.shipping_restriction === 'prohibited' && <span className="badge-hazmat">🚫</span>}
+            {entry.shipping_restriction === 'restricted' && <span className="badge-hazmat-warn">⚠️</span>}
             <span className={DECISION_BADGE_CLASS[entry.final_decision as Decision] ?? 'badge'}>
               {entry.final_decision.replace('KEEP-', '').replace('-', ' ')}
             </span>
@@ -611,6 +613,30 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
                   )}
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Shipping restriction */}
+          {entry.shipping_restriction && entry.shipping_restriction !== 'none' && (
+            <div className={`hazmat-banner hazmat-${entry.shipping_restriction}`} style={{ marginBottom: 16 }}>
+              <span className="hazmat-icon">
+                {entry.shipping_restriction === 'prohibited' ? '🚫' : '⚠️'}
+              </span>
+              <div className="hazmat-body">
+                <p className="hazmat-title">
+                  {entry.shipping_restriction === 'prohibited'
+                    ? 'Cannot ship internationally · Non spedibile'
+                    : 'Shipping restricted · Restrizioni di spedizione'}
+                </p>
+                {entry.shipping_restriction_note && (
+                  <p className="hazmat-note">{entry.shipping_restriction_note}</p>
+                )}
+                {entry.shipping_restriction_note_it && (
+                  <p className="hazmat-note italic" style={{ color: 'var(--ink-soft)', marginTop: 4 }}>
+                    {entry.shipping_restriction_note_it}
+                  </p>
+                )}
+              </div>
             </div>
           )}
 

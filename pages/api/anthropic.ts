@@ -26,9 +26,16 @@ Decision codes:
 - KEEP-US: stays in ${usStop} (not going to Italy, at least not now)
 - SELL: sell before the move
 - DONATE: donate locally
-- DISPOSE: trash, recycling, or hazmat
+- DISPOSE: trash, recycling, or special disposal (including prohibited hazmat items)
 - GIVE-FAMILY: give to a family member via trip or suitcase
 - NEEDS-HUMAN: no clear AI recommendation; both partners need to discuss
+
+SHIPPING RESTRICTION RULES — assess international ocean-freight restrictions carefully:
+- Lithium-ion battery packs (power tools, e-bikes, large UPS batteries) are Class 9 hazmat and PROHIBITED in ocean containers without special certification. Flag as "prohibited".
+- Small consumer lithium batteries (phones, laptops, AA-size cells) are "restricted" — allowed with quantity limits and documentation.
+- Aerosols, flammables, compressed gas, pool chemicals, paint = "prohibited" for ocean freight.
+- Standard household items with no chemical/battery content = "none".
+- When an item is "prohibited", set final_decision to DISPOSE unless the user can clearly ship it via another legal method.
 
 Evaluate this item and return a JSON object with these fields:
 {
@@ -50,7 +57,10 @@ Evaluate this item and return a JSON object with these fields:
   "survival_risk": "English risk description or null",
   "survival_risk_it": "Italian risk description or null",
   "packing_notes": "English packing notes or null",
-  "packing_notes_it": "Italian packing notes or null"
+  "packing_notes_it": "Italian packing notes or null",
+  "shipping_restriction": "none"|"restricted"|"prohibited",
+  "shipping_restriction_note": "English explanation of restriction and alternatives, or null if none",
+  "shipping_restriction_note_it": "Italian explanation, or null if none"
 }
 
 Return ONLY the JSON object, no markdown, no explanation.
@@ -82,7 +92,7 @@ ${description ? `Item description: ${description}` : ''}`
   try {
     const response = await anthropic.messages.create({
       model: settings.aiModel || 'claude-sonnet-4-5',
-      max_tokens: 1024,
+      max_tokens: 1536,
       messages,
     })
 

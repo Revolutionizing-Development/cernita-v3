@@ -31,6 +31,9 @@ export interface Entry {
   bin_id: string | null
   box_id: number | null
   current_location_id: number | null
+  shipping_restriction: 'none' | 'restricted' | 'prohibited' | null
+  shipping_restriction_note: string | null
+  shipping_restriction_note_it: string | null
 }
 
 export type Decision =
@@ -101,6 +104,8 @@ export interface Box {
   trip_id: number | null
   suitcase_class: 'checked' | 'carry_on' | 'personal_item' | null
   weight_limit_lb: number | null
+  // Storage requirement (migration 008)
+  storage_requirement: 'climate_controlled' | 'standard' | 'garage_ok' | null
 }
 
 export type TripStatus = 'planned' | 'packing' | 'executed' | 'canceled'
@@ -110,6 +115,12 @@ export const TRIP_STATUS_LABELS: Record<TripStatus, { en: string; it: string }> 
   packing:  { en: 'Packing',   it: 'In preparazione' },
   executed: { en: 'Executed',  it: 'Completato' },
   canceled: { en: 'Canceled',  it: 'Annullato' },
+}
+
+export const STORAGE_REQUIREMENT_LABELS: Record<'climate_controlled' | 'standard' | 'garage_ok', { en: string; it: string; hint: string }> = {
+  climate_controlled: { en: 'Climate controlled', it: 'Climatizzato',    hint: 'Books, art, electronics, leather, instruments' },
+  standard:           { en: 'Standard indoor',    it: 'Interno standard', hint: 'Most household items' },
+  garage_ok:          { en: 'Garage / outdoor ok', it: 'Va bene in garage', hint: 'Tools, pots & pans, outdoor gear, metal items' },
 }
 
 export const SUITCASE_CLASS_LABELS: Record<'checked' | 'carry_on' | 'personal_item', { en: string; it: string }> = {
