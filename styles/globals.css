@@ -1466,3 +1466,436 @@ body {
   border-top: 1px solid var(--paper-dark);
   margin-top: 8px;
 }
+
+/* ─── Trips page ─────────────────────────────────────────────────────────── */
+
+.trips-section-title {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 24px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--paper-dark);
+  letter-spacing: 0.01em;
+}
+
+.trips-empty {
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 14px;
+  padding: 20px 0;
+  font-style: italic;
+}
+
+/* Trip card */
+.trip-card {
+  background: white;
+  border: 1px solid var(--paper-dark);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.15s ease;
+}
+
+.trip-card:active { box-shadow: none; transform: scale(0.995); }
+
+.trip-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.trip-card-name {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.trip-card-name-it {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin-top: 1px;
+}
+
+/* Status pills */
+.trip-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.trip-status-planned  { background: var(--paper-dark);      color: var(--ink-soft); }
+.trip-status-packing  { background: #fff3cd;                 color: #856404; }
+.trip-status-executed { background: var(--olive-soft);       color: #3d4a2b; }
+.trip-status-canceled { background: #f8d7da;                 color: #721c24; }
+
+.trip-card-route {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+
+.trip-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.trip-card-meta-item {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.trip-overweight-warning {
+  font-size: 11px;
+  color: var(--terracotta);
+  font-weight: 600;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Trip detail overlay */
+.trip-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  max-width: 640px;
+  margin: 0 auto;
+  overflow-y: auto;
+}
+
+.trip-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--paper-dark);
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  z-index: 1;
+}
+
+.trip-detail-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 0 6px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.trip-detail-title {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 600;
+  flex: 1;
+  line-height: 1.2;
+}
+
+.trip-detail-body {
+  padding: 16px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.trip-lock-banner {
+  background: var(--olive-soft);
+  border: 1px solid var(--olive);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #3d4a2b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trip-lock-banner-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.trip-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.trip-info-item label {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.trip-info-item span {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.trip-suitcases-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.trip-suitcases-title {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* Suitcase card */
+.suitcase-card {
+  background: white;
+  border: 1px solid var(--paper-dark);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-card);
+}
+
+.suitcase-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.suitcase-icon { font-size: 20px; line-height: 1; }
+
+.suitcase-number {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.suitcase-class-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--paper-dark);
+  color: var(--ink-soft);
+}
+
+.suitcase-weight-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.suitcase-weight-text {
+  font-size: 12px;
+  color: var(--ink-soft);
+  min-width: 90px;
+}
+
+.suitcase-weight-text.over { color: var(--terracotta); font-weight: 600; }
+
+.suitcase-weight-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--paper-dark);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.suitcase-weight-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--olive);
+  transition: width 0.3s ease;
+}
+
+.suitcase-weight-fill.over { background: var(--terracotta); }
+
+.suitcase-items {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--paper-dark);
+}
+
+.suitcase-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--paper-dark);
+}
+
+.suitcase-item-row:last-child { border-bottom: none; }
+
+.suitcase-item-name {
+  color: var(--ink);
+  flex: 1;
+}
+
+.suitcase-item-weight {
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.suitcase-empty-msg {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+/* Trip action buttons */
+.trip-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.trip-confirm-dialog {
+  background: var(--paper-dark);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.trip-confirm-dialog p {
+  font-size: 14px;
+  margin-bottom: 12px;
+  color: var(--ink);
+}
+
+.trip-confirm-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* Notes edit in trip detail */
+.trip-notes-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trip-notes-edit textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 10px;
+  border: 1px solid var(--paper-dark);
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  resize: vertical;
+  background: white;
+  color: var(--ink);
+}
+
+/* Add suitcase / new trip overlays */
+.new-trip-overlay,
+.add-suitcase-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(44,44,44,0.5);
+  display: flex;
+  align-items: flex-end;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.new-trip-sheet,
+.add-suitcase-sheet {
+  background: var(--paper);
+  border-radius: 16px 16px 0 0;
+  padding: 20px 16px 32px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-overlay);
+}
+
+.new-trip-sheet h3,
+.add-suitcase-sheet h3 {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.new-trip-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.form-field label {
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--paper-dark);
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  background: white;
+  color: var(--ink);
+  width: 100%;
+}
+
+.form-field textarea { min-height: 64px; resize: vertical; }
+
+.weight-limit-hint {
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+  font-style: italic;
+}

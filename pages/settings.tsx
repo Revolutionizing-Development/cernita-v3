@@ -178,6 +178,51 @@ export default function SettingsPage() {
             </select>
           </div>
 
+          {/* ── Trip / suitcase defaults ── */}
+          <h2 className="section-header">
+            Trip bag limits · <em className="italic ink-soft">Limiti bagagli</em>
+          </h2>
+          <p className="settings-hint" style={{ marginBottom: 12 }}>
+            Default weight limits used when creating suitcases. Override per-bag on the Trips page.
+          </p>
+          <div className="card" style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label className="input-label">Checked bag limit (lb) · Bagaglio da stiva</label>
+                <input
+                  type="number"
+                  className="input"
+                  step="1"
+                  min="0"
+                  value={settings.checkedBagLimitLb}
+                  onChange={e => updateSetting('checkedBagLimitLb', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <div>
+                <label className="input-label">Carry-on limit (lb) · Bagaglio a mano</label>
+                <input
+                  type="number"
+                  className="input"
+                  step="1"
+                  min="0"
+                  value={settings.carryOnLimitLb}
+                  onChange={e => updateSetting('carryOnLimitLb', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <div>
+                <label className="input-label">Personal item limit (lb) · Oggetto personale</label>
+                <input
+                  type="number"
+                  className="input"
+                  step="1"
+                  min="0"
+                  value={settings.personalItemLimitLb}
+                  onChange={e => updateSetting('personalItemLimitLb', parseFloat(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* ── Locations ── */}
           <h2 className="section-header">
             Locations · <em className="italic ink-soft">Posizioni</em>
