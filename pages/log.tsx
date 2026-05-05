@@ -145,16 +145,26 @@ export default function LogPage() {
           <span className="serif" style={{ fontSize: '20px' }}>Log</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {entries.length > 0 && (
-              <button
-                className="btn-link"
-                style={{ fontSize: 12, textDecoration: 'none', color: 'var(--ink-soft)' }}
-                onClick={() => {
-                  exportCSV(entries)
-                  showToast(`${entries.length} items exported · File esportato`)
-                }}
-              >
-                ↓ CSV
-              </button>
+              <>
+                <button
+                  className="btn-link"
+                  style={{ fontSize: 12, textDecoration: 'none', color: 'var(--ink-soft)' }}
+                  onClick={() => {
+                    exportCSV(entries)
+                    showToast(`${entries.length} items exported · File esportato`)
+                  }}
+                >
+                  ↓ CSV
+                </button>
+                <a
+                  href="/export/inventory"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: 'var(--ink-soft)', textDecoration: 'none' }}
+                >
+                  ↓ PDF
+                </a>
+              </>
             )}
             <SyncIndicator />
           </div>

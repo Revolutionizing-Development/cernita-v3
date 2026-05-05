@@ -162,6 +162,28 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* ── Currency ── */}
+          <h2 className="section-header">
+            Currency · <em className="italic ink-soft">Valuta</em>
+          </h2>
+          <p className="settings-hint" style={{ marginBottom: 12 }}>
+            EUR/USD rate used for the Italian customs distinta. Update before generating the document.
+          </p>
+          <div className="card" style={{ marginBottom: 24 }}>
+            <label className="input-label">EUR / USD exchange rate · Cambio EUR/USD</label>
+            <input
+              type="number"
+              className="input"
+              step="0.01"
+              min="0.1"
+              value={settings.eurRate}
+              onChange={e => updateSetting('eurRate', parseFloat(e.target.value) || 0.92)}
+            />
+            <p className="settings-hint" style={{ marginTop: 6 }}>
+              e.g. 0.92 means $1 = €0.92 · Default: 0.92
+            </p>
+          </div>
+
           {/* ── AI model ── */}
           <h2 className="section-header">
             AI model · <em className="italic ink-soft">Modello AI</em>
@@ -229,6 +251,46 @@ export default function SettingsPage() {
           </h2>
           <div className="card" style={{ marginBottom: 24 }}>
             <LocationsManager />
+          </div>
+
+          {/* ── Documents ── */}
+          <h2 className="section-header">
+            Documents · <em className="italic ink-soft">Documenti</em>
+          </h2>
+          <p className="settings-hint" style={{ marginBottom: 12 }}>
+            Print-to-PDF documents for customs, insurance, and shipping records.
+          </p>
+          <div className="card" style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <a
+                href="/export/inventory"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary"
+                style={{ textAlign: 'center', textDecoration: 'none', display: 'block' }}
+              >
+                📄 Inventory with photos · <em className="italic">Inventario con foto</em>
+                {state.log.length > 0 && (
+                  <span className="ink-soft" style={{ fontSize: 11, marginLeft: 8 }}>
+                    ({state.log.length} items)
+                  </span>
+                )}
+              </a>
+              <a
+                href="/distinta"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary"
+                style={{ textAlign: 'center', textDecoration: 'none', display: 'block' }}
+              >
+                🇮🇹 Distinta doganale italiana · <em className="italic">Italian customs declaration</em>
+                {state.log.filter(e => e.final_decision === 'KEEP-ITALY').length > 0 && (
+                  <span className="ink-soft" style={{ fontSize: 11, marginLeft: 8 }}>
+                    ({state.log.filter(e => e.final_decision === 'KEEP-ITALY').length} KEEP-ITALY items)
+                  </span>
+                )}
+              </a>
+            </div>
           </div>
 
           {/* ── Maintenance ── */}

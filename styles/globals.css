@@ -1775,6 +1775,419 @@ body {
   a { text-decoration: none; color: black; }
 }
 
+/* ─── Inventory export page ─────────────────────────────────────────────── */
+
+.export-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 0 48px;
+  font-family: 'Lato', sans-serif;
+  color: var(--ink);
+}
+
+.export-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--paper-dark);
+  background: var(--paper);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.export-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 20px;
+  background: var(--paper-dark);
+  border-bottom: 1px solid #d9d0c3;
+}
+
+.export-doc-header {
+  padding: 24px 20px 16px;
+  border-bottom: 2px solid var(--ink);
+}
+
+.export-doc-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.export-doc-meta {
+  display: flex;
+  gap: 20px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.export-doc-totals {
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+}
+
+.export-group {
+  margin-top: 24px;
+}
+
+.export-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 20px;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.export-group-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.export-group-count {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.export-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.export-th-photo { width: 68px; padding: 8px 8px 8px 20px; text-align: center; }
+.export-th-item  { padding: 8px 12px; text-align: left; }
+.export-th-num   { width: 64px; padding: 8px 20px 8px 8px; text-align: right; }
+
+.export-th-photo,
+.export-th-item,
+.export-th-num {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--paper-dark);
+}
+
+.export-row { border-bottom: 1px solid var(--paper-dark); }
+.export-row-alt { background: var(--paper-dark); }
+
+.export-cell-photo {
+  padding: 8px 8px 8px 20px;
+  vertical-align: top;
+  width: 68px;
+}
+
+.export-photo-thumb {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid var(--paper-dark);
+  display: block;
+}
+
+.export-photo-empty {
+  width: 52px;
+  height: 52px;
+  background: var(--paper-dark);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--ink-soft);
+}
+
+.export-cell-name {
+  padding: 8px 12px;
+  vertical-align: top;
+}
+
+.export-cell-num {
+  padding: 8px 20px 8px 8px;
+  text-align: right;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.export-item-primary {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.export-item-it {
+  font-style: italic;
+  color: var(--ink-soft);
+  font-size: 11px;
+  margin-top: 1px;
+}
+
+.export-item-model {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 10px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.export-item-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.export-flag {
+  font-size: 10px;
+  color: var(--ink-soft);
+}
+
+.export-flag-hazmat { color: #8b1a1a; }
+.export-flag-warn   { color: #7a5c00; }
+
+.export-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 20px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--paper-dark);
+  margin-top: 32px;
+}
+
+/* ─── Distinta doganale page ─────────────────────────────────────────────── */
+
+.distinta-page {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 0 0 48px;
+  font-family: 'Lato', sans-serif;
+  color: #111;
+}
+
+.distinta-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--paper-dark);
+  background: var(--paper);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.distinta-doc {
+  padding: 32px 24px;
+}
+
+.distinta-header {
+  text-align: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #111;
+}
+
+.distinta-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0 0 6px;
+  color: #111;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.distinta-subtitle {
+  font-size: 11px;
+  color: #555;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.distinta-declarant {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.distinta-field-row {
+  display: flex;
+  gap: 24px;
+}
+
+.distinta-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.distinta-field-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #777;
+  font-weight: 700;
+}
+
+.distinta-field-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111;
+}
+
+.distinta-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-bottom: 20px;
+}
+
+.distinta-th-num  { width: 32px; padding: 8px 8px 8px 0; text-align: right; }
+.distinta-th-desc { padding: 8px 10px; text-align: left; }
+.distinta-th-ref  { width: 160px; padding: 8px 10px; text-align: left; }
+.distinta-th-cond { width: 64px; padding: 8px 10px; text-align: center; }
+.distinta-th-val  { width: 88px; padding: 8px 10px; text-align: right; }
+
+.distinta-th-num,
+.distinta-th-desc,
+.distinta-th-ref,
+.distinta-th-cond,
+.distinta-th-val {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #555;
+  border-bottom: 2px solid #111;
+}
+
+.distinta-row         { border-bottom: 1px solid #ddd; }
+.distinta-row-alt     { background: #f7f5f0; }
+
+.distinta-cell-num  { padding: 8px 8px 8px 0; text-align: right; vertical-align: top; color: #777; font-size: 11px; }
+.distinta-cell-desc { padding: 8px 10px; vertical-align: top; }
+.distinta-cell-ref  { padding: 8px 10px; vertical-align: top; color: #666; font-size: 11px; }
+.distinta-cell-cond { padding: 8px 10px; text-align: center; vertical-align: top; color: #555; }
+.distinta-cell-val  { padding: 8px 10px; text-align: right; vertical-align: top; white-space: nowrap; font-family: 'Courier New', Courier, monospace; }
+
+.distinta-item-name  { font-weight: 600; line-height: 1.35; }
+.distinta-item-model { font-size: 10px; color: #777; font-family: 'Courier New', Courier, monospace; margin-top: 1px; }
+
+.distinta-total-row td {
+  padding: 10px 10px;
+  border-top: 2px solid #111;
+  font-weight: 700;
+}
+
+.distinta-total-label { font-size: 12px; text-align: right; }
+.distinta-total-val   { font-family: 'Courier New', Courier, monospace; text-align: right; }
+
+.distinta-declaration {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 14px 16px;
+  margin-bottom: 24px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #333;
+}
+
+.distinta-disclaimer {
+  margin-top: 10px;
+  font-size: 10px;
+  color: #777;
+  font-style: italic;
+  border-top: 1px solid #eee;
+  padding-top: 8px;
+}
+
+.distinta-signature {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 24px;
+}
+
+.distinta-sig-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.distinta-sig-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #777;
+}
+
+.distinta-sig-line {
+  border-bottom: 1px solid #111;
+  height: 36px;
+}
+
+.distinta-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #999;
+  border-top: 1px solid #ddd;
+  padding-top: 12px;
+}
+
+.distinta-empty {
+  padding: 24px;
+  font-style: italic;
+  color: #777;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Print rules for export + distinta */
+@media print {
+  .export-toolbar,
+  .export-filters,
+  .distinta-toolbar { display: none !important; }
+
+  .export-page,
+  .distinta-page {
+    max-width: 100%;
+    padding: 0;
+    color: black;
+    background: white;
+  }
+
+  .export-doc-header,
+  .distinta-header   { padding: 0 0 12px; }
+  .export-group-header { background: #222 !important; }
+
+  .export-row-alt  { background: #f5f5f5 !important; }
+  .distinta-row-alt { background: #f5f5f5 !important; }
+
+  .export-photo-empty { background: #eee; }
+
+  .export-footer,
+  .distinta-footer { border-top: 1px solid #ccc; }
+}
+
 /* ─── Dashboard ─────────────────────────────────────────────────────────── */
 
 .dash-section {

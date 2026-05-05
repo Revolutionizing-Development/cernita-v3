@@ -165,6 +165,8 @@ export interface CernitaSettings {
   personalItemLimitLb: number
   // AI
   aiModel: string
+  // EUR/USD exchange rate — used for Italian customs distinta
+  eurRate: number
   // Rule versioning (bumped when rates change)
   rulesVersion: string
 }
@@ -181,5 +183,6 @@ export const DEFAULT_SETTINGS: CernitaSettings = {
   carryOnLimitLb: 22,
   personalItemLimitLb: 16,
   aiModel: 'claude-sonnet-4-5',
+  eurRate: 0.92,
   rulesVersion: '1.0.0',
 }
