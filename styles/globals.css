@@ -1538,6 +1538,243 @@ body {
   color: var(--terracotta);
 }
 
+/* ─── Manifest page ─────────────────────────────────────────────────────── */
+
+.manifest-page {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 0 48px;
+  font-family: 'Lato', sans-serif;
+  color: var(--ink);
+}
+
+.manifest-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--paper-dark);
+  background: var(--paper);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.manifest-header {
+  padding: 24px 20px 16px;
+  border-bottom: 2px solid var(--ink);
+}
+
+.manifest-box-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.manifest-box-number {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+.manifest-box-dest {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.manifest-box-dest-it {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.manifest-box-type {
+  font-size: 12px;
+  color: var(--ink-soft);
+  padding: 2px 8px;
+  border: 1px solid var(--paper-dark);
+  border-radius: 10px;
+}
+
+.manifest-closed-badge {
+  font-size: 12px;
+  color: var(--ink-soft);
+  padding: 2px 8px;
+  border: 1px solid var(--paper-dark);
+  border-radius: 10px;
+}
+
+.manifest-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.manifest-notes {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.manifest-totals-bar {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  background: var(--paper-dark);
+  font-size: 13px;
+  border-bottom: 1px solid #d9d0c3;
+}
+
+.manifest-empty {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--ink-soft);
+  font-style: italic;
+  font-size: 14px;
+}
+
+.manifest-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.manifest-th-num,
+.manifest-th-item {
+  padding: 10px 20px 8px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--paper-dark);
+}
+
+.manifest-th-num { text-align: right; width: 56px; }
+
+.manifest-row {
+  border-bottom: 1px solid var(--paper-dark);
+}
+
+.manifest-row:nth-child(even) { background: var(--paper-dark); }
+
+.manifest-cell-idx {
+  color: var(--ink-soft);
+  font-size: 11px;
+  padding: 10px 8px 10px 20px;
+  vertical-align: top;
+  text-align: right;
+  width: 32px;
+}
+
+.manifest-cell-name {
+  padding: 10px 16px;
+  vertical-align: top;
+}
+
+.manifest-cell-num {
+  padding: 10px 20px 10px 8px;
+  text-align: right;
+  vertical-align: top;
+  white-space: nowrap;
+  width: 56px;
+}
+
+.manifest-item-primary {
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+.manifest-item-it {
+  color: var(--ink-soft);
+  font-style: italic;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.manifest-item-model {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.manifest-item-flag {
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+.manifest-flag-fragile  { color: var(--terracotta); }
+.manifest-flag-oversized { color: var(--ink-soft); }
+.manifest-flag-hazmat   { color: #8b1a1a; }
+
+.manifest-totals-row td {
+  padding: 10px 20px 10px 8px;
+  border-top: 2px solid var(--ink);
+  font-weight: 700;
+}
+
+.manifest-totals-label {
+  padding-left: 16px;
+  font-size: 13px;
+}
+
+.manifest-totals-val {
+  text-align: right;
+}
+
+.manifest-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 20px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  border-top: 1px solid var(--paper-dark);
+  margin-top: 24px;
+}
+
+/* Print rules */
+@media print {
+  .no-print { display: none !important; }
+  nav        { display: none !important; }
+
+  body, .manifest-page {
+    background: white;
+    color: black;
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .manifest-toolbar  { display: none; }
+  .manifest-header   { padding: 0 0 12px; border-bottom: 2px solid black; }
+  .manifest-totals-bar { background: #f0f0f0; padding: 8px 0; }
+
+  .manifest-table    { font-size: 11px; }
+  .manifest-row:nth-child(even) { background: #f8f8f8; }
+  .manifest-totals-row td { border-top: 2px solid black; }
+
+  .manifest-footer {
+    margin-top: 16px;
+    border-top: 1px solid #ccc;
+    font-size: 10px;
+  }
+
+  a { text-decoration: none; color: black; }
+}
+
 /* ─── Dashboard ─────────────────────────────────────────────────────────── */
 
 .dash-section {

@@ -612,6 +612,17 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
             {saving ? 'Saving…' : 'Save · Salva'}
           </button>
 
+          {/* Print manifest */}
+          <a
+            href={`/manifest/${box.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary"
+            style={{ display: 'block', textAlign: 'center', marginBottom: 10, textDecoration: 'none', fontSize: 14 }}
+          >
+            ◫ Print manifest · Stampa lista
+          </a>
+
           {/* Items in box */}
           {items.length > 0 && (
             <div style={{ marginTop: 20 }}>

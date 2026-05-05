@@ -52,6 +52,17 @@ const VALID_DECISIONS: Decision[] = [
   'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'NEEDS-HUMAN',
 ]
 
+// Items with these decisions are never packed into a shipping box
+const NON_PACKABLE: Decision[] = ['SELL', 'DONATE', 'DISPOSE']
+
+// Returns open boxes whose destination matches the item's decision
+function getCompatibleBoxes(boxes: Box[], decision: Decision): Box[] {
+  const open = boxes.filter((b: Box) => !b.closed_at)
+  if (decision === 'GIVE-FAMILY') return open.filter((b: Box) => b.box_type === 'suitcase')
+  if (decision === 'NEEDS-HUMAN') return open
+  return open.filter((b: Box) => b.destination === decision)
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmt(n: number | null | undefined): string {
@@ -105,6 +116,7 @@ export default function EvaluatePage() {
   // Post-save box prompt state
   const [savedEntryId, setSavedEntryId] = useState<number | null>(null)
   const [savedItemName, setSavedItemName] = useState('')
+  const [savedEntryDecision, setSavedEntryDecision] = useState<Decision | null>(null)
   const [savedEntryOversized, setSavedEntryOversized] = useState(false)
   const [packBoxId, setPackBoxId] = useState<number | ''>('')
   const [packing, setPacking] = useState(false)
@@ -329,6 +341,7 @@ export default function EvaluatePage() {
     // Store saved entry for box prompt
     setSavedEntryId(data.id)
     setSavedItemName(savedName)
+    setSavedEntryDecision(decision)
     setSavedEntryOversized(aiResult.oversized ?? false)
     setPackBoxId('')
 
@@ -338,10 +351,18 @@ export default function EvaluatePage() {
     setToastMsg(toast)
     setPhase('saved')
 
-    // Auto-reset only if no open boxes to assign to
-    const openBoxes = boxes.filter((b: Box) => !b.closed_at)
-    if (openBoxes.length === 0) {
+    // Auto-reset conditions:
+    // — SELL/DONATE/DISPOSE: never packed, return to camera after toast
+    // — Oversized: show note with explicit Continue button (no auto-reset)
+    // — Packable: auto-reset only if no compatible boxes exist
+    const isNonPackable = NON_PACKABLE.includes(decision)
+    if (isNonPackable) {
       setTimeout(() => resetToCamera(), 2800)
+    } else if (!(aiResult.oversized ?? false)) {
+      const compatible = getCompatibleBoxes(boxes as Box[], decision)
+      if (compatible.length === 0) {
+        setTimeout(() => resetToCamera(), 2800)
+      }
     }
   }
 
@@ -350,6 +371,7 @@ export default function EvaluatePage() {
   function resetToCamera() {
     setSavedEntryId(null)
     setSavedItemName('')
+    setSavedEntryDecision(null)
     setSavedEntryOversized(false)
     setPackBoxId('')
     setPacking(false)
@@ -539,53 +561,69 @@ export default function EvaluatePage() {
                     Continue · Continua
                   </button>
                 </div>
-              ) : boxes.filter((b: Box) => !b.closed_at).length > 0 ? (
-                <div className="saved-box-prompt">
-                  <p className="box-assign-label">Pack into a box? · Inscatola?</p>
-                  <select
-                    className="input"
-                    value={packBoxId}
-                    onChange={e => setPackBoxId(e.target.value ? Number(e.target.value) : '')}
-                    style={{ marginBottom: 12 }}
-                  >
-                    <option value="">— No box, skip —</option>
-                    {boxes.filter((b: Box) => !b.closed_at).map((b: Box) => {
-                      const isSuitcase = b.box_type === 'suitcase'
-                      const lbl = getDecisionLabel(b.destination, settings.usDestination)
-                      const classLbl = isSuitcase && b.suitcase_class
-                        ? SUITCASE_CLASS_LABELS[b.suitcase_class as keyof typeof SUITCASE_CLASS_LABELS]?.en
-                        : null
-                      return (
-                        <option key={b.id} value={b.id}>
-                          {isSuitcase ? '🧳 ' : ''}{b.box_number} · {classLbl ?? lbl.en.split('—').pop()?.trim()}
-                        </option>
-                      )
-                    })}
-                  </select>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      className="btn-secondary"
-                      style={{ flex: 1 }}
-                      onClick={resetToCamera}
-                      disabled={packing}
+              ) : savedEntryDecision && !NON_PACKABLE.includes(savedEntryDecision) && (() => {
+                const compatibleBoxes = getCompatibleBoxes(boxes as Box[], savedEntryDecision)
+                if (compatibleBoxes.length === 0) return (
+                  <p className="ink-soft" style={{ fontSize: 13, marginTop: 8 }}>
+                    Returning to camera… · Torno alla fotocamera…
+                  </p>
+                )
+                const plasticBoxes = compatibleBoxes.filter((b: Box) => b.box_type !== 'suitcase')
+                const suitcases    = compatibleBoxes.filter((b: Box) => b.box_type === 'suitcase')
+                return (
+                  <div className="saved-box-prompt">
+                    <p className="box-assign-label">Pack into a box? · Inscatola?</p>
+                    <select
+                      className="input"
+                      value={packBoxId}
+                      onChange={e => setPackBoxId(e.target.value ? Number(e.target.value) : '')}
+                      style={{ marginBottom: 12 }}
                     >
-                      Skip · Salta
-                    </button>
-                    <button
-                      className="btn-primary"
-                      style={{ flex: 2 }}
-                      onClick={handlePackEntry}
-                      disabled={!packBoxId || packing}
-                    >
-                      {packing ? 'Packing…' : 'Pack it · Inscatola'}
-                    </button>
+                      <option value="">— No box, skip —</option>
+                      {plasticBoxes.map((b: Box) => {
+                        const lbl = getDecisionLabel(b.destination, settings.usDestination)
+                        return (
+                          <option key={b.id} value={b.id}>
+                            {b.box_number} · {lbl.en.split('—').pop()?.trim()}
+                          </option>
+                        )
+                      })}
+                      {suitcases.length > 0 && (
+                        <optgroup label="🧳 Suitcases">
+                          {suitcases.map((b: Box) => {
+                            const classLbl = b.suitcase_class
+                              ? SUITCASE_CLASS_LABELS[b.suitcase_class as keyof typeof SUITCASE_CLASS_LABELS]?.en
+                              : 'Suitcase'
+                            return (
+                              <option key={b.id} value={b.id}>
+                                🧳 {b.box_number} · {classLbl}
+                              </option>
+                            )
+                          })}
+                        </optgroup>
+                      )}
+                    </select>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        className="btn-secondary"
+                        style={{ flex: 1 }}
+                        onClick={resetToCamera}
+                        disabled={packing}
+                      >
+                        Skip · Salta
+                      </button>
+                      <button
+                        className="btn-primary"
+                        style={{ flex: 2 }}
+                        onClick={handlePackEntry}
+                        disabled={!packBoxId || packing}
+                      >
+                        {packing ? 'Packing…' : 'Pack it · Inscatola'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <p className="ink-soft" style={{ fontSize: 13, marginTop: 8 }}>
-                  Returning to camera… · Torno alla fotocamera…
-                </p>
-              )}
+                )
+              })()}
             </div>
           </div>
         )}

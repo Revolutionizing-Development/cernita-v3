@@ -56,6 +56,24 @@ const ALL_DECISIONS: Decision[] = [
   'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'NEEDS-HUMAN',
 ]
 
+// Decisions that mean the item will never be packed into a shipping box
+const NON_PACKABLE: Decision[] = ['SELL', 'DONATE', 'DISPOSE']
+
+// Returns only open boxes whose destination is compatible with the item's decision
+function getCompatibleBoxes(boxes: Box[], decision: Decision): Box[] {
+  const open = boxes.filter(b => !b.closed_at)
+  if (decision === 'GIVE-FAMILY') return open.filter(b => b.box_type === 'suitcase')
+  if (decision === 'NEEDS-HUMAN') return open
+  return open.filter(b => b.destination === decision)
+}
+
+function getCompatibleClosedBoxes(boxes: Box[], decision: Decision): Box[] {
+  const closed = boxes.filter(b => b.closed_at)
+  if (decision === 'GIVE-FAMILY') return closed.filter(b => b.box_type === 'suitcase')
+  if (decision === 'NEEDS-HUMAN') return closed
+  return closed.filter(b => b.destination === decision)
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LogPage() {
@@ -644,79 +662,102 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
             </div>
           )}
 
-          {/* Box assignment — hidden for oversized items */}
+          {/* Box assignment — enforces destination compatibility */}
           {entry.oversized ? (
             <div className="oversized-note">
               <p className="oversized-note-text">
                 ◱ Oversized — ships separately · <em>Oggetto di grandi dimensioni, spedizione separata</em>
               </p>
             </div>
-          ) : boxes.length > 0 && (
+          ) : NON_PACKABLE.includes(entry.final_decision as Decision) ? (
             <div className="box-assign-section">
               <p className="box-assign-label">Box · Scatola</p>
-              {entry.box_id ? (
-                <p className="box-assign-current">
-                  Currently in <strong className="box-number" style={{ fontSize: 13 }}>
-                    {boxes.find(b => b.id === entry.box_id)?.box_number ?? `#${entry.box_id}`}
-                  </strong>
-                </p>
-              ) : (
-                <p className="box-assign-current">Not packed · Non ancora inscatolato</p>
-              )}
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <select
-                  className="input"
-                  style={{ flex: 1, fontSize: 13, padding: '8px 10px' }}
-                  value={selectedBoxId === null ? '' : selectedBoxId}
-                  onChange={e => setSelectedBoxId(e.target.value === '' ? null : Number(e.target.value))}
-                >
-                  <option value="">— No box —</option>
-                  {boxes.filter(b => !b.closed_at && b.box_type !== 'suitcase').map(b => {
-                    const lbl = getDecisionLabel(b.destination, settings.usDestination)
-                    return (
-                      <option key={b.id} value={b.id}>
-                        {b.box_number} · {lbl.en.split('—').pop()?.trim()}
-                      </option>
-                    )
-                  })}
-                  {boxes.some(b => !b.closed_at && b.box_type === 'suitcase') && (
-                    <optgroup label="🧳 Suitcases">
-                      {boxes.filter(b => !b.closed_at && b.box_type === 'suitcase').map(b => {
-                        const classLbl = b.suitcase_class
-                          ? SUITCASE_CLASS_LABELS[b.suitcase_class as keyof typeof SUITCASE_CLASS_LABELS]?.en
-                          : 'Suitcase'
-                        return (
-                          <option key={b.id} value={b.id}>
-                            {b.box_number} · {classLbl}
-                          </option>
-                        )
-                      })}
-                    </optgroup>
-                  )}
-                  {boxes.some(b => b.closed_at) && (
-                    <optgroup label="Closed boxes">
-                      {boxes.filter(b => b.closed_at).map(b => {
+              <p style={{ fontSize: 13, color: 'var(--ink-soft)', fontStyle: 'italic', margin: 0 }}>
+                {entry.final_decision === 'SELL'
+                  ? 'Being sold — not packed into a box · Da vendere'
+                  : entry.final_decision === 'DONATE'
+                  ? 'Being donated — not packed · Da donare'
+                  : 'Being disposed — not packed · Da smaltire'}
+              </p>
+            </div>
+          ) : boxes.length > 0 && (() => {
+            const compatibleOpen   = getCompatibleBoxes(boxes, entry.final_decision as Decision)
+            const compatibleClosed = getCompatibleClosedBoxes(boxes, entry.final_decision as Decision)
+            const openPlastic   = compatibleOpen.filter(b => b.box_type !== 'suitcase')
+            const openSuitcases = compatibleOpen.filter(b => b.box_type === 'suitcase')
+            return (
+              <div className="box-assign-section">
+                <p className="box-assign-label">Box · Scatola</p>
+                {entry.box_id ? (
+                  <p className="box-assign-current">
+                    Currently in <strong className="box-number" style={{ fontSize: 13 }}>
+                      {boxes.find(b => b.id === entry.box_id)?.box_number ?? `#${entry.box_id}`}
+                    </strong>
+                  </p>
+                ) : (
+                  <p className="box-assign-current">Not packed · Non ancora inscatolato</p>
+                )}
+                {compatibleOpen.length === 0 && compatibleClosed.length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--ink-soft)', fontStyle: 'italic' }}>
+                    No compatible boxes open · Nessuna scatola compatibile — add one in Bins
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <select
+                      className="input"
+                      style={{ flex: 1, fontSize: 13, padding: '8px 10px' }}
+                      value={selectedBoxId === null ? '' : selectedBoxId}
+                      onChange={e => setSelectedBoxId(e.target.value === '' ? null : Number(e.target.value))}
+                    >
+                      <option value="">— No box —</option>
+                      {openPlastic.map(b => {
                         const lbl = getDecisionLabel(b.destination, settings.usDestination)
                         return (
                           <option key={b.id} value={b.id}>
-                            {b.box_number} · {lbl.en.split('—').pop()?.trim()} (closed)
+                            {b.box_number} · {lbl.en.split('—').pop()?.trim()}
                           </option>
                         )
                       })}
-                    </optgroup>
-                  )}
-                </select>
-                <button
-                  className="btn-secondary"
-                  style={{ whiteSpace: 'nowrap', padding: '8px 14px', fontSize: 13 }}
-                  onClick={handleBoxAssign}
-                  disabled={savingBox || selectedBoxId === (entry.box_id ?? null)}
-                >
-                  {savingBox ? '…' : 'Assign · Assegna'}
-                </button>
+                      {openSuitcases.length > 0 && (
+                        <optgroup label="🧳 Suitcases">
+                          {openSuitcases.map(b => {
+                            const classLbl = b.suitcase_class
+                              ? SUITCASE_CLASS_LABELS[b.suitcase_class as keyof typeof SUITCASE_CLASS_LABELS]?.en
+                              : 'Suitcase'
+                            return (
+                              <option key={b.id} value={b.id}>
+                                {b.box_number} · {classLbl}
+                              </option>
+                            )
+                          })}
+                        </optgroup>
+                      )}
+                      {compatibleClosed.length > 0 && (
+                        <optgroup label="Closed boxes">
+                          {compatibleClosed.map(b => {
+                            const lbl = getDecisionLabel(b.destination, settings.usDestination)
+                            return (
+                              <option key={b.id} value={b.id}>
+                                {b.box_number} · {lbl.en.split('—').pop()?.trim()} (closed)
+                              </option>
+                            )
+                          })}
+                        </optgroup>
+                      )}
+                    </select>
+                    <button
+                      className="btn-secondary"
+                      style={{ whiteSpace: 'nowrap', padding: '8px 14px', fontSize: 13 }}
+                      onClick={handleBoxAssign}
+                      disabled={savingBox || selectedBoxId === (entry.box_id ?? null)}
+                    >
+                      {savingBox ? '…' : 'Assign · Assegna'}
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Location (for loose items) */}
           {locations.length > 0 && (
