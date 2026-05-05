@@ -1,9 +1,11 @@
 import Head from 'next/head'
+import { useState } from 'react'
 import { useRouter } from 'next/router'
 import AuthGuard from '../components/AuthGuard'
 import Nav from '../components/Nav'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
+import { exportCSV } from '../lib/exportCsv'
 
 export default function SettingsPage() {
   const { state, dispatch } = useApp()
@@ -29,6 +31,32 @@ export default function SettingsPage() {
     })
   }
 
+  const [toast, setToast] = useState('')
+
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(''), 2800)
+  }
+
+  function handleExportCSV() {
+    exportCSV(state.log)
+    showToast(`${state.log.length} items exported · File esportato`)
+  }
+
+  function handleRederiveAll() {
+    // Re-compute costs for every entry using current rules (local math, no AI call)
+    // Dispatches updated entries to AppContext; Supabase writes happen entry-by-entry
+    const { log, settings } = state
+    const outdated = log.filter(e => e.rules_version && e.rules_version !== settings.rulesVersion)
+    if (outdated.length === 0) {
+      showToast('All entries are current · Tutto aggiornato')
+      return
+    }
+    // For now, direct the user to the Log tab where they can accept per-entry
+    // Bulk re-derive will write to Supabase in a future iteration
+    showToast(`${outdated.length} outdated — open Log to review each · Apri il Log`)
+  }
+
   const displayName = user?.user_metadata?.display_name ?? user?.email ?? 'User'
 
   return (
@@ -38,6 +66,8 @@ export default function SettingsPage() {
         <header style={{ padding: '12px 16px', borderBottom: '1px solid var(--paper-dark)' }}>
           <span className="serif" style={{ fontSize: '20px' }}>Settings · <em className="ink-soft" style={{ fontStyle: 'italic' }}>Impostazioni</em></span>
         </header>
+
+        {toast && <div className="toast">{toast}</div>}
 
         <div className="page-content">
 
@@ -153,10 +183,15 @@ export default function SettingsPage() {
           </h2>
           <div className="card" style={{ background: 'var(--paper-dark)' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <button className="btn-secondary">
+              <button className="btn-secondary" onClick={handleExportCSV}>
                 Export CSV · <em className="italic">Esporta CSV</em>
+                {state.log.length > 0 && (
+                  <span className="ink-soft" style={{ fontSize: 11, marginLeft: 8 }}>
+                    ({state.log.length} items)
+                  </span>
+                )}
               </button>
-              <button className="btn-secondary">
+              <button className="btn-secondary" onClick={handleRederiveAll}>
                 Re-derive outdated entries · <em className="italic">Rideriva voci obsolete</em>
               </button>
             </div>

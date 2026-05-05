@@ -6,6 +6,7 @@ import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import { Entry, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel, CernitaSettings } from '../lib/types'
+import { exportCSV } from '../lib/exportCsv'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -111,7 +112,21 @@ export default function LogPage() {
 
         <header className="log-header">
           <span className="serif" style={{ fontSize: '20px' }}>Log</span>
-          <SyncIndicator />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {entries.length > 0 && (
+              <button
+                className="btn-link"
+                style={{ fontSize: 12, textDecoration: 'none', color: 'var(--ink-soft)' }}
+                onClick={() => {
+                  exportCSV(entries)
+                  showToast(`${entries.length} items exported · File esportato`)
+                }}
+              >
+                ↓ CSV
+              </button>
+            )}
+            <SyncIndicator />
+          </div>
         </header>
 
         {toast && <div className="toast">{toast}</div>}
