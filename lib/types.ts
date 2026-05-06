@@ -37,6 +37,12 @@ export interface Entry {
   shipping_restriction: 'none' | 'restricted' | 'prohibited' | null
   shipping_restriction_note: string | null
   shipping_restriction_note_it: string | null
+  // Phase (spec 016) — when does the action happen?
+  action_phase: ActionPhase | null
+  // Override tags (spec 016) — structured reasons for overrides
+  override_tags: string[] | null
+  // Italy confirmation gate (spec 016) — active-use items must be re-confirmed
+  italy_confirmed: boolean
   // Customs fields (spec 015)
   acquisition_year: number | null
   customs_eligible: boolean | null
@@ -46,48 +52,71 @@ export interface Entry {
 }
 
 export type Decision =
-  | 'KEEP-ITALY'
-  | 'KEEP-US'       // intermediate US stop — city configured in Settings
+  | 'SHIP-ITALY'
   | 'SELL'
   | 'DONATE'
   | 'DISPOSE'
   | 'GIVE-FAMILY'
+  | 'CONSUME'
   | 'NEEDS-HUMAN'
 
-// Static fallback labels — KEEP-US display label is overridden dynamically
-// by getDecisionLabel() which uses the configured usDestination.
-export const DECISION_LABELS: Record<Decision, { en: string; it: string }> = {
-  'KEEP-ITALY':  { en: 'Keep — ship to Italy',    it: 'Porta in Italia' },
-  'KEEP-US':     { en: 'Keep — US stop',           it: 'Porta negli USA' },
-  'SELL':        { en: 'Sell',                     it: 'Vendi' },
-  'DONATE':      { en: 'Donate',                   it: 'Dona' },
-  'DISPOSE':     { en: 'Dispose',                  it: 'Smaltisci' },
-  'GIVE-FAMILY': { en: 'Give to family',           it: 'Dai alla famiglia' },
-  'NEEDS-HUMAN': { en: 'Needs discussion',         it: 'Richiede discussione' },
+// Action phase — when does the decision happen?
+export type ActionPhase = 'NOW' | 'COLORADO'
+
+export const ACTION_PHASE_LABELS: Record<ActionPhase, { en: string; it: string }> = {
+  'NOW':      { en: 'Now',       it: 'Ora' },
+  'COLORADO': { en: 'Colorado',  it: 'Colorado' },
 }
 
-// Returns a decision label, substituting the configured US city for KEEP-US.
+export const DECISION_LABELS: Record<Decision, { en: string; it: string }> = {
+  'SHIP-ITALY':  { en: 'Ship to Italy',     it: 'Spedire in Italia' },
+  'SELL':        { en: 'Sell',               it: 'Vendi' },
+  'DONATE':      { en: 'Donate',             it: 'Dona' },
+  'DISPOSE':     { en: 'Dispose',            it: 'Smaltisci' },
+  'GIVE-FAMILY': { en: 'Give to family',     it: 'Dai alla famiglia' },
+  'CONSUME':     { en: 'Use up',             it: 'Consuma' },
+  'NEEDS-HUMAN': { en: 'Needs discussion',   it: 'Richiede discussione' },
+}
+
+// Returns a decision label, optionally combined with action phase.
 export function getDecisionLabel(
   decision: Decision,
-  usDestination = 'Colorado Springs'
+  _usDestination = 'Colorado',
+  phase?: ActionPhase | null
 ): { en: string; it: string } {
-  if (decision === 'KEEP-US') {
-    return {
-      en: `Keep — move to ${usDestination}`,
-      it: `Porta a ${usDestination}`,
-    }
+  const base = DECISION_LABELS[decision]
+  if (!phase) return base
+
+  // Combine decision + phase for SELL, DONATE, CONSUME
+  if (phase === 'NOW') {
+    if (decision === 'SELL') return { en: 'Sell now', it: 'Vendi ora' }
+    if (decision === 'DONATE') return { en: 'Donate now', it: 'Dona ora' }
   }
-  return DECISION_LABELS[decision]
+  if (phase === 'COLORADO') {
+    if (decision === 'SELL') return { en: 'Sell in Colorado', it: 'Vendi in Colorado' }
+    if (decision === 'DONATE') return { en: 'Donate in Colorado', it: 'Dona in Colorado' }
+    if (decision === 'CONSUME') return { en: 'Use up in Colorado', it: 'Consuma in Colorado' }
+  }
+  return base
 }
 
 export const DECISION_BADGE_CLASS: Record<Decision, string> = {
-  'KEEP-ITALY':  'badge badge-keep-italy',
-  'KEEP-US':     'badge badge-keep-us',
+  'SHIP-ITALY':  'badge badge-ship-italy',
   'SELL':        'badge badge-sell',
   'DONATE':      'badge badge-donate',
   'DISPOSE':     'badge badge-dispose',
   'GIVE-FAMILY': 'badge badge-give-family',
+  'CONSUME':     'badge badge-consume',
   'NEEDS-HUMAN': 'badge badge-needs-human',
+}
+
+// Colorado box placement (spec 016)
+export type ColoradoPlacement = 'ACTIVE-USE' | 'HOUSE-STORAGE' | 'GARAGE'
+
+export const COLORADO_PLACEMENT_LABELS: Record<ColoradoPlacement, { en: string; it: string; icon: string; climate: string }> = {
+  'ACTIVE-USE':    { en: 'Active use',       it: 'Uso attivo',       icon: '\uD83C\uDFE0', climate: 'Climate-controlled' },
+  'HOUSE-STORAGE': { en: 'House storage',    it: 'Deposito in casa', icon: '\uD83D\uDDC4\uFE0F', climate: 'Climate-controlled' },
+  'GARAGE':        { en: 'Garage',           it: 'Garage',           icon: '\uD83D\uDE97', climate: 'Non-climate-controlled' },
 }
 
 export interface Location {
@@ -115,6 +144,8 @@ export interface Box {
   weight_limit_lb: number | null
   // Storage requirement (migration 008)
   storage_requirement: 'climate_controlled' | 'standard' | 'garage_ok' | null
+  // Colorado placement (spec 016)
+  colorado_placement: ColoradoPlacement | null
 }
 
 export type TripStatus = 'planned' | 'packing' | 'executed' | 'canceled'

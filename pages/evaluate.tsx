@@ -7,7 +7,7 @@ import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import haptic from '../lib/haptic'
-import { Box, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel } from '../lib/types'
+import { Box, Decision, ActionPhase, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, ACTION_PHASE_LABELS } from '../lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,16 +47,20 @@ interface AiResult {
   shipping_restriction_note_it: string | null
   oversized: boolean | null
   voltage_incompatible: boolean | null
+  action_phase: ActionPhase | null
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const VALID_DECISIONS: Decision[] = [
-  'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'NEEDS-HUMAN',
+  'SHIP-ITALY', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'CONSUME', 'NEEDS-HUMAN',
 ]
 
+// Decisions that support action_phase
+const PHASED_DECISIONS: Decision[] = ['SELL', 'DONATE', 'CONSUME']
+
 // Items with these decisions are never packed into a shipping box
-const NON_PACKABLE: Decision[] = ['SELL', 'DONATE', 'DISPOSE']
+const NON_PACKABLE: Decision[] = ['SELL', 'DONATE', 'DISPOSE', 'CONSUME']
 
 // Returns open boxes whose destination matches the item's decision
 function getCompatibleBoxes(boxes: Box[], decision: Decision): Box[] {
@@ -120,6 +124,7 @@ export default function EvaluatePage() {
 
   // Override overlay state
   const [overrideDecision, setOverrideDecision] = useState<Decision>('NEEDS-HUMAN')
+  const [overridePhase, setOverridePhase] = useState<ActionPhase | null>(null)
   const [overrideReason, setOverrideReason] = useState('')
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
 
@@ -242,6 +247,13 @@ export default function EvaluatePage() {
       }
       const data = await res.json()
       const items: AiResult[] = (data.items ?? [data]).map((item: AiResult) => {
+        // Migration: handle legacy decision values from AI
+        if ((item.final_decision as string) === 'KEEP-ITALY') {
+          item.final_decision = 'SHIP-ITALY'
+        } else if ((item.final_decision as string) === 'KEEP-US') {
+          item.final_decision = 'SELL'
+          item.action_phase = 'COLORADO'
+        }
         // Sanitize: guard against unexpected decision values
         if (!VALID_DECISIONS.includes(item.final_decision)) {
           console.warn('Unexpected final_decision from AI:', item.final_decision)
@@ -249,6 +261,10 @@ export default function EvaluatePage() {
           item.confidence = 'low'
         }
         if (!item.confidence) item.confidence = 'medium'
+        // Default phase for phased decisions
+        if (PHASED_DECISIONS.includes(item.final_decision) && !item.action_phase) {
+          item.action_phase = 'NOW'
+        }
         return item
       })
 
@@ -260,6 +276,7 @@ export default function EvaluatePage() {
       setCurrentItemIndex(0)
       setSavedCount(0)
       setOverrideDecision(items[0].final_decision)
+      setOverridePhase(items[0].action_phase ?? null)
       setPhase('result')
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return // user cancelled
@@ -295,9 +312,14 @@ export default function EvaluatePage() {
 
   // ─── Save action ───────────────────────────────────────────────────────────
 
-  async function saveEntry(decision: Decision, reason?: string) {
+  async function saveEntry(decision: Decision, reason?: string, phase?: ActionPhase | null) {
     if (!aiResult) return
     setPhase('saving')
+
+    // Determine action_phase: use explicit phase, or AI's suggestion for phased decisions
+    const actionPhase = phase !== undefined ? phase
+      : PHASED_DECISIONS.includes(decision) ? (aiResult.action_phase ?? 'NOW')
+      : null
 
     const userName =
       user?.user_metadata?.display_name ??
@@ -310,6 +332,8 @@ export default function EvaluatePage() {
       item_name_it: aiResult.item_name_it,
       item_model: aiResult.item_model ?? null,
       final_decision: decision,
+      action_phase: actionPhase,
+      italy_confirmed: false,
       user_confirmed: true,
       override_reason: reason ?? null,
       estimated_resale_value: aiResult.estimated_resale_value,
@@ -368,6 +392,7 @@ export default function EvaluatePage() {
       const nextItem = aiResults[nextIdx]
       setCurrentItemIndex(nextIdx)
       setOverrideDecision(nextItem.final_decision)
+      setOverridePhase(nextItem.action_phase ?? null)
       setOverrideReason('')
       setErrorMsg('')
       setToastMsg(`✓ ${aiResult.item_name} saved · ${nextIdx + 1} of ${aiResults.length}`)
@@ -600,9 +625,10 @@ export default function EvaluatePage() {
               saving={phase === 'saving'}
               errorMsg={errorMsg}
               usDestination={settings.usDestination}
-              onConfirm={() => saveEntry(aiResult.final_decision)}
+              onConfirm={() => saveEntry(aiResult.final_decision, undefined, aiResult.action_phase)}
               onOverride={() => {
                 setOverrideDecision(aiResult.final_decision)
+                setOverridePhase(aiResult.action_phase ?? null)
                 setPhase('override')
               }}
             />
@@ -613,12 +639,22 @@ export default function EvaluatePage() {
         {phase === 'override' && (
           <OverrideOverlay
             current={overrideDecision}
+            currentPhase={overridePhase}
             reason={overrideReason}
             usDestination={settings.usDestination}
-            onChange={setOverrideDecision}
+            onChange={(d) => {
+              setOverrideDecision(d)
+              // Auto-set phase for phased decisions
+              if (PHASED_DECISIONS.includes(d) && !overridePhase) {
+                setOverridePhase('NOW')
+              } else if (!PHASED_DECISIONS.includes(d)) {
+                setOverridePhase(null)
+              }
+            }}
+            onPhaseChange={setOverridePhase}
             onReasonChange={setOverrideReason}
             onCancel={() => setPhase('result')}
-            onSave={() => saveEntry(overrideDecision, overrideReason || undefined)}
+            onSave={() => saveEntry(overrideDecision, overrideReason || undefined, overridePhase)}
           />
         )}
 
@@ -791,7 +827,7 @@ function ResultCard({
   onConfirm: () => void
   onOverride: () => void
 }) {
-  const label = getDecisionLabel(result.final_decision as Decision, usDestination)
+  const label = getDecisionLabel(result.final_decision as Decision, usDestination, result.action_phase)
   const badgeClass = DECISION_BADGE_CLASS[result.final_decision as Decision] ?? 'badge'
   const showPreservation = result.fragility && result.fragility !== 'none'
   const confidence = result.confidence ?? 'medium'
@@ -1004,21 +1040,27 @@ function Em({ children }: { children: React.ReactNode }) {
 
 function OverrideOverlay({
   current,
+  currentPhase,
   reason,
   usDestination,
   onChange,
+  onPhaseChange,
   onReasonChange,
   onCancel,
   onSave,
 }: {
   current: Decision
+  currentPhase: ActionPhase | null
   reason: string
   usDestination: string
   onChange: (d: Decision) => void
+  onPhaseChange: (p: ActionPhase | null) => void
   onReasonChange: (r: string) => void
   onCancel: () => void
   onSave: () => void
 }) {
+  const showPhase = PHASED_DECISIONS.includes(current)
+
   return (
     <div className="overlay-backdrop" onClick={e => { if (e.target === e.currentTarget) onCancel() }}>
       <div className="override-sheet">
@@ -1029,7 +1071,7 @@ function OverrideOverlay({
           className="input"
           value={current}
           onChange={e => onChange(e.target.value as Decision)}
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: showPhase ? 8 : 16 }}
         >
           {VALID_DECISIONS.map(d => {
             const lbl = getDecisionLabel(d, usDestination)
@@ -1038,6 +1080,28 @@ function OverrideOverlay({
             )
           })}
         </select>
+
+        {showPhase && (
+          <>
+            <label className="input-label" style={{ marginTop: 8 }}>When · Quando</label>
+            <div className="phase-picker" style={{ marginBottom: 16 }}>
+              <button
+                className={`phase-pill${currentPhase === 'NOW' ? ' active' : ''}`}
+                onClick={() => onPhaseChange('NOW')}
+                type="button"
+              >
+                Now · Ora
+              </button>
+              <button
+                className={`phase-pill${currentPhase === 'COLORADO' ? ' active' : ''}`}
+                onClick={() => onPhaseChange('COLORADO')}
+                type="button"
+              >
+                Colorado
+              </button>
+            </div>
+          </>
+        )}
 
         <label className="input-label">Reason (optional) · Motivo</label>
         <textarea

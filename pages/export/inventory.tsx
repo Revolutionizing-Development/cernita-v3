@@ -13,13 +13,13 @@ function fmt(n: number | null | undefined): string {
 
 // Decisions in display order, with section labels
 const GROUPS: { decision: Decision; label: string }[] = [
-  { decision: 'KEEP-ITALY',  label: 'Ship to Italy · Spedire in Italia' },
-  { decision: 'KEEP-US',     label: 'Stay in US · Lasciare negli USA' },
+  { decision: 'SHIP-ITALY',  label: 'Ship to Italy · Spedire in Italia' },
   { decision: 'GIVE-FAMILY', label: 'Give to family · Alla famiglia' },
   { decision: 'NEEDS-HUMAN', label: 'Needs discussion · Richiede discussione' },
   { decision: 'SELL',        label: 'Sell · Vendere' },
   { decision: 'DONATE',      label: 'Donate · Donare' },
   { decision: 'DISPOSE',     label: 'Dispose · Smaltire' },
+  { decision: 'CONSUME',     label: 'Consume · Consumare' },
 ]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ export default function InventoryExportPage() {
 
   // Filter controls — screen only, hidden in print
   const [include, setInclude] = useState<Set<Decision>>(
-    new Set(['KEEP-ITALY', 'KEEP-US', 'GIVE-FAMILY', 'NEEDS-HUMAN', 'SELL', 'DONATE', 'DISPOSE'] as Decision[])
+    new Set(['SHIP-ITALY', 'GIVE-FAMILY', 'NEEDS-HUMAN', 'SELL', 'DONATE', 'DISPOSE', 'CONSUME'] as Decision[])
   )
 
   function toggleDecision(d: Decision) {

@@ -14,7 +14,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const usStop = settings.usDestination || 'Colorado Springs'
 
-  const prompt = `You are helping evaluate household items for an international move from Illinois to Italy, with an intermediate stop in ${usStop}.
+  const prompt = `You are helping evaluate household items for an international move from Galesburg, Illinois to Italy, with an intermediate stop in ${usStop} (~6 months from now). The couple will live in ${usStop} for ~2 years before the final move to Italy.
 
 Rules in effect:
 - Storage in ${usStop}: $${settings.storageRatePerCuFt}/cu ft/month for ${settings.monthsInStorage} months
@@ -22,13 +22,18 @@ Rules in effect:
 - Carry-on: free (no additional cost)
 
 Decision codes:
-- KEEP-ITALY: ship to Italy in the ocean container
-- KEEP-US: stays in ${usStop} (not going to Italy, at least not now)
-- SELL: sell before the move
-- DONATE: donate locally
+- SHIP-ITALY: ship to Italy in the ocean container (ultimate destination = Italy)
+- SELL: sell (specify action_phase: "NOW" for selling in Galesburg, "COLORADO" for selling in ${usStop})
+- DONATE: donate (specify action_phase: "NOW" for donating in Galesburg, "COLORADO" for donating in ${usStop})
+- CONSUME: item will be used up before the Italy move (medicine, toiletries, consumables). Set action_phase: "COLORADO" if the item travels to ${usStop} to be consumed there.
 - DISPOSE: trash, recycling, or special disposal (including prohibited hazmat items)
 - GIVE-FAMILY: give to a family member via trip or suitcase
 - NEEDS-HUMAN: no clear AI recommendation; both partners need to discuss
+
+ACTION PHASE — for SELL, DONATE, and CONSUME decisions, also return an "action_phase" field:
+- "NOW": do it now in the current location (Galesburg, IL)
+- "COLORADO": do it after moving to ${usStop}
+Items that are cheap, heavy, or easily replaceable should lean toward "NOW" (sell/donate before the move to avoid moving cost). Items the couple needs in the interim should be "COLORADO".
 
 SHIPPING RESTRICTION RULES — assess international ocean-freight restrictions carefully:
 - Lithium-ion battery packs (power tools, e-bikes, large UPS batteries) are Class 9 hazmat and PROHIBITED in ocean containers without special certification. Flag as "prohibited".
@@ -51,7 +56,7 @@ Items that are voltage-compatible should be false:
 - Devices with "100–240V~" or "universal" on the power brick/label (most laptops, phone chargers, game consoles)
 - Battery-only items (no plug at all)
 - Non-electrical items (furniture, clothing, books, kitchenware without motors)
-When voltage_incompatible is true, factor the cost of a step-down transformer (~$30–60 for items under 300W, ~$100–200 for high-wattage appliances like hair dryers, power tools) into the rationale. If the transformer cost plus the shipping cost exceeds 50% of the Italian replacement cost, recommend SELL instead of KEEP-ITALY.
+When voltage_incompatible is true, factor the cost of a step-down transformer (~$30–60 for items under 300W, ~$100–200 for high-wattage appliances like hair dryers, power tools) into the rationale. If the transformer cost plus the shipping cost exceeds 50% of the Italian replacement cost, recommend SELL (with action_phase "COLORADO") instead of SHIP-ITALY.
 
 MULTI-ITEM DETECTION — carefully examine the photo. If you see MULTIPLE DISTINCT items that should each be evaluated separately (e.g. a shelf with several appliances, a table with assorted objects, a group of tools), return a JSON object with an "items" array. Each element in the array is a full evaluation object. If you see only ONE item (or a set that logically counts as one — e.g. a pair of shoes, a set of dishes, a tool with its case), return a single JSON object (no "items" wrapper).
 
@@ -70,7 +75,8 @@ Each evaluation object (whether single or inside the "items" array) must have th
   "item_model": "Brand + model name/number string, or null",
   "oversized": true or false,
   "voltage_incompatible": true or false,
-  "final_decision": one of KEEP-ITALY|KEEP-US|SELL|DONATE|DISPOSE|GIVE-FAMILY|NEEDS-HUMAN,
+  "final_decision": one of SHIP-ITALY|SELL|DONATE|DISPOSE|GIVE-FAMILY|CONSUME|NEEDS-HUMAN,
+  "action_phase": "NOW" or "COLORADO" or null (required for SELL, DONATE, CONSUME; null for others),
   "estimated_resale_value": number or null,
   "replacement_cost": number or null,
   "weight_lb": number or null,

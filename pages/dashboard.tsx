@@ -20,16 +20,16 @@ function fmtLb(n: number): string {
 }
 
 const DECISION_ORDER: Decision[] = [
-  'KEEP-ITALY', 'KEEP-US', 'GIVE-FAMILY', 'SELL', 'DONATE', 'DISPOSE', 'NEEDS-HUMAN',
+  'SHIP-ITALY', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'CONSUME', 'NEEDS-HUMAN',
 ]
 
 const DECISION_BAR_COLORS: Record<Decision, string> = {
-  'KEEP-ITALY':  'var(--olive)',
-  'KEEP-US':     'var(--gold)',
-  'GIVE-FAMILY': '#8b7355',
+  'SHIP-ITALY':  'var(--olive)',
   'SELL':        'var(--terracotta)',
   'DONATE':      '#5e9e8a',
   'DISPOSE':     'var(--ink-soft)',
+  'GIVE-FAMILY': '#8b7355',
+  'CONSUME':     '#7a8c9e',
   'NEEDS-HUMAN': '#c9a84c',
 }
 
@@ -48,16 +48,16 @@ export default function DashboardPage() {
   const total = entries.length
 
   // ── Italy-bound ──────────────────────────────────────────────────────────
-  const italyItems   = entries.filter(e => e.final_decision === 'KEEP-ITALY')
+  const italyItems   = entries.filter(e => e.final_decision === 'SHIP-ITALY')
   const italyWeight  = italyItems.filter(e => e.weight_lb != null).reduce((s, e) => s + (e.weight_lb ?? 0), 0)
   const italyVol     = italyItems.filter(e => e.volume_cuft != null).reduce((s, e) => s + (e.volume_cuft ?? 0), 0)
   const italyShipCost = italyItems.reduce((s, e) => s + (e.ship_cost ?? 0), 0)
   const italyUnknownW = italyItems.filter(e => e.weight_lb == null).length
 
-  // ── US stop ──────────────────────────────────────────────────────────────
-  const usItems  = entries.filter(e => e.final_decision === 'KEEP-US')
-  const usWeight = usItems.filter(e => e.weight_lb != null).reduce((s, e) => s + (e.weight_lb ?? 0), 0)
-  const usStorageCost = usItems.reduce((s, e) => s + (e.storage_cost_total ?? 0), 0)
+  // ── Colorado stop (SELL items with action_phase COLORADO) ───────────────
+  const coloradoItems = entries.filter(e => e.action_phase === 'COLORADO')
+  const coloradoWeight = coloradoItems.filter(e => e.weight_lb != null).reduce((s, e) => s + (e.weight_lb ?? 0), 0)
+  const coloradoStorageCost = coloradoItems.reduce((s, e) => s + (e.storage_cost_total ?? 0), 0)
 
   // ── Action needed ─────────────────────────────────────────────────────────
   const needsHuman   = entries.filter(e => e.final_decision === 'NEEDS-HUMAN').length
@@ -199,7 +199,7 @@ export default function DashboardPage() {
                 <div className="dash-section">
                   <h2 className="dash-section-title">
                     Going to Italy · <em>Diretti in Italia</em>
-                    <span className={`${DECISION_BADGE_CLASS['KEEP-ITALY']} dash-section-badge`}>{animItaly}</span>
+                    <span className={`${DECISION_BADGE_CLASS['SHIP-ITALY']} dash-section-badge`}>{animItaly}</span>
                   </h2>
                   <div className="dash-stat-row">
                     <div className="dash-stat">
@@ -222,23 +222,23 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* ── US stop ── */}
-              {usItems.length > 0 && (
+              {/* ── Colorado stop ── */}
+              {coloradoItems.length > 0 && (
                 <div className="dash-section">
                   <h2 className="dash-section-title">
-                    {settings.usDestination} stop · <em>Sosta</em>
-                    <span className={`${DECISION_BADGE_CLASS['KEEP-US']} dash-section-badge`}>{counts['KEEP-US']}</span>
+                    Colorado stop · <em>Sosta in Colorado</em>
+                    <span className={`${DECISION_BADGE_CLASS['SELL']} dash-section-badge`}>{coloradoItems.length}</span>
                   </h2>
                   <div className="dash-stat-row">
-                    {usWeight > 0 && (
+                    {coloradoWeight > 0 && (
                       <div className="dash-stat">
-                        <span className="dash-stat-value serif">{fmtLb(usWeight)}</span>
+                        <span className="dash-stat-value serif">{fmtLb(coloradoWeight)}</span>
                         <span className="dash-stat-label">total weight</span>
                       </div>
                     )}
-                    {usStorageCost > 0 && (
+                    {coloradoStorageCost > 0 && (
                       <div className="dash-stat">
-                        <span className="dash-stat-value serif">{fmt(usStorageCost)}</span>
+                        <span className="dash-stat-value serif">{fmt(coloradoStorageCost)}</span>
                         <span className="dash-stat-label">est. storage cost</span>
                       </div>
                     )}
@@ -324,7 +324,7 @@ export default function DashboardPage() {
               )}
 
               {/* ── Total cost summary ── */}
-              {(italyShipCost > 0 || usStorageCost > 0) && (
+              {(italyShipCost > 0 || coloradoStorageCost > 0) && (
                 <div className="dash-section dash-section-costs">
                   <h2 className="dash-section-title">Estimated costs · <em>Costi stimati</em></h2>
                   <p className="settings-hint" style={{ marginBottom: 12 }}>
@@ -338,17 +338,17 @@ export default function DashboardPage() {
                         <span className="dash-cost-sub">{italyItems.length} items · {fmtLb(italyWeight)}</span>
                       </div>
                     )}
-                    {usStorageCost > 0 && (
+                    {coloradoStorageCost > 0 && (
                       <div className="dash-cost-block">
                         <span className="dash-cost-label">{settings.monthsInStorage}mo storage</span>
-                        <span className="dash-cost-value serif">{fmt(usStorageCost)}</span>
-                        <span className="dash-cost-sub">{usItems.length} items · ${settings.storageRatePerCuFt}/cu ft</span>
+                        <span className="dash-cost-value serif">{fmt(coloradoStorageCost)}</span>
+                        <span className="dash-cost-sub">{coloradoItems.length} items · ${settings.storageRatePerCuFt}/cu ft</span>
                       </div>
                     )}
-                    {italyShipCost > 0 && usStorageCost > 0 && (
+                    {italyShipCost > 0 && coloradoStorageCost > 0 && (
                       <div className="dash-cost-block dash-cost-total">
                         <span className="dash-cost-label">Total estimated</span>
-                        <span className="dash-cost-value serif">{fmt(italyShipCost + usStorageCost)}</span>
+                        <span className="dash-cost-value serif">{fmt(italyShipCost + coloradoStorageCost)}</span>
                         <span className="dash-cost-sub">ship + storage</span>
                       </div>
                     )}

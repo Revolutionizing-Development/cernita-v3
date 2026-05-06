@@ -18,7 +18,7 @@ function fmt(n: number | null | undefined): string {
 }
 
 const RESOLVE_OPTIONS: Decision[] = [
-  'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY',
+  'SHIP-ITALY', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'CONSUME',
 ]
 
 // ─── Discussion card ──────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ function DiscussCard({
   onResolved: (entry: Entry) => void
 }) {
   const [resolving, setResolving] = useState(false)
-  const [selectedDecision, setSelectedDecision] = useState<Decision>('KEEP-ITALY')
+  const [selectedDecision, setSelectedDecision] = useState<Decision>('SHIP-ITALY')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 

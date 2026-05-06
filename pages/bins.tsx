@@ -6,7 +6,7 @@ import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import haptic from '../lib/haptic'
-import { Box, Location, Entry, Decision, CernitaSettings, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, STORAGE_REQUIREMENT_LABELS, getDecisionLabel } from '../lib/types'
+import { Box, Location, Entry, Decision, CernitaSettings, ColoradoPlacement, COLORADO_PLACEMENT_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, STORAGE_REQUIREMENT_LABELS, getDecisionLabel } from '../lib/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ function weightLabel(lb: number | null, unknownCount: number): string {
 }
 
 const VALID_DESTINATIONS: Decision[] = [
-  'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY',
+  'SHIP-ITALY', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'CONSUME',
 ]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -489,6 +489,9 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
   const [storageReq, setStorageReq] = useState<'climate_controlled' | 'standard' | 'garage_ok'>(
     (box.storage_requirement as 'climate_controlled' | 'standard' | 'garage_ok') ?? 'standard'
   )
+  const [coloradoPlacement, setColoradoPlacement] = useState<ColoradoPlacement | null>(
+    box.colorado_placement ?? null
+  )
   const [saving, setSaving] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [error, setError] = useState('')
@@ -498,7 +501,7 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
     setError('')
     const { data, error: err } = await supabase
       .from('cernita_boxes')
-      .update({ current_location_id: locationId, notes: notes || null, storage_requirement: storageReq })
+      .update({ current_location_id: locationId, notes: notes || null, storage_requirement: storageReq, colorado_placement: coloradoPlacement })
       .eq('id', box.id)
       .select()
       .single()
@@ -601,6 +604,20 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
             {STORAGE_REQUIREMENT_LABELS[storageReq]?.hint}
           </p>
 
+          {/* Colorado placement */}
+          <label className="input-label" style={{ marginTop: 4 }}>Colorado placement · Collocazione in Colorado</label>
+          <select
+            className="input"
+            value={coloradoPlacement ?? ''}
+            onChange={e => setColoradoPlacement(e.target.value ? e.target.value as ColoradoPlacement : null)}
+            style={{ marginBottom: 14 }}
+          >
+            <option value="">— Not set —</option>
+            {(Object.entries(COLORADO_PLACEMENT_LABELS) as [ColoradoPlacement, typeof COLORADO_PLACEMENT_LABELS[ColoradoPlacement]][]).map(([key, lbl]) => (
+              <option key={key} value={key}>{lbl.icon} {lbl.en} · {lbl.it} ({lbl.climate})</option>
+            ))}
+          </select>
+
           {/* Notes */}
           <label className="input-label">Notes · Note</label>
           <textarea
@@ -702,11 +719,12 @@ function NewBoxOverlay({ boxes, locations, usDestination, onClose, onCreated }: 
   onClose: () => void
   onCreated: (b: Box) => void
 }) {
-  const [destination, setDestination] = useState<Decision>('KEEP-ITALY')
+  const [destination, setDestination] = useState<Decision>('SHIP-ITALY')
   const [locationId, setLocationId] = useState<number | null>(
     locations.find(l => l.name === 'Galesburg house')?.id ?? locations[0]?.id ?? null
   )
   const [storageReq, setStorageReq] = useState<'climate_controlled' | 'standard' | 'garage_ok'>('standard')
+  const [coloradoPlacement, setColoradoPlacement] = useState<ColoradoPlacement | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -722,6 +740,7 @@ function NewBoxOverlay({ boxes, locations, usDestination, onClose, onCreated }: 
         destination,
         current_location_id: locationId,
         storage_requirement: storageReq,
+        colorado_placement: coloradoPlacement,
       })
       .select()
       .single()
@@ -767,6 +786,19 @@ function NewBoxOverlay({ boxes, locations, usDestination, onClose, onCreated }: 
           ))}
         </select>
         <p className="settings-hint" style={{ marginBottom: 14 }}>{STORAGE_REQUIREMENT_LABELS[storageReq]?.hint}</p>
+
+        <label className="input-label">Colorado placement · Collocazione in Colorado</label>
+        <select
+          className="input"
+          value={coloradoPlacement ?? ''}
+          onChange={e => setColoradoPlacement(e.target.value ? e.target.value as ColoradoPlacement : null)}
+          style={{ marginBottom: 14 }}
+        >
+          <option value="">— Not set —</option>
+          {(Object.entries(COLORADO_PLACEMENT_LABELS) as [ColoradoPlacement, typeof COLORADO_PLACEMENT_LABELS[ColoradoPlacement]][]).map(([key, lbl]) => (
+            <option key={key} value={key}>{lbl.icon} {lbl.en} · {lbl.it} ({lbl.climate})</option>
+          ))}
+        </select>
 
         <label className="input-label">Starting location · Posizione iniziale</label>
         <select

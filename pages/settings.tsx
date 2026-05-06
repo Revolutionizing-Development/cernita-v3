@@ -362,9 +362,9 @@ export default function SettingsPage() {
                 style={{ textAlign: 'center', textDecoration: 'none', display: 'block' }}
               >
                 🇮🇹 Customs declaration · <em className="italic">Dichiarazione doganale</em>
-                {state.log.filter(e => e.final_decision === 'KEEP-ITALY').length > 0 && (
+                {state.log.filter(e => e.final_decision === 'SHIP-ITALY').length > 0 && (
                   <span className="ink-soft" style={{ fontSize: 11, marginLeft: 8 }}>
-                    ({state.log.filter(e => e.final_decision === 'KEEP-ITALY').length} KEEP-ITALY items)
+                    ({state.log.filter(e => e.final_decision === 'SHIP-ITALY').length} SHIP-ITALY items)
                   </span>
                 )}
               </a>
@@ -399,9 +399,9 @@ export default function SettingsPage() {
                 style={{ textAlign: 'center', textDecoration: 'none', display: 'block' }}
               >
                 🏷 Etichette scatole · <em className="italic">Box labels (customs-compliant)</em>
-                {state.boxes.filter(b => b.destination === 'KEEP-ITALY').length > 0 && (
+                {state.boxes.filter(b => b.destination === 'SHIP-ITALY').length > 0 && (
                   <span className="ink-soft" style={{ fontSize: 11, marginLeft: 8 }}>
-                    ({state.boxes.filter(b => b.destination === 'KEEP-ITALY').length} Italy-bound boxes)
+                    ({state.boxes.filter(b => b.destination === 'SHIP-ITALY').length} Italy-bound boxes)
                   </span>
                 )}
               </a>

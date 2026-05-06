@@ -46,10 +46,10 @@ export interface CustomsCompleteness {
 
 export function checkCompleteness(entries: Entry[]): CustomsCompleteness {
   const keepItaly = entries.filter(e =>
-    e.final_decision === 'KEEP-ITALY' && !e.customs_exclude
+    e.final_decision === 'SHIP-ITALY' && !e.customs_exclude
   )
   const excluded = entries.filter(e =>
-    e.final_decision === 'KEEP-ITALY' && e.customs_exclude
+    e.final_decision === 'SHIP-ITALY' && e.customs_exclude
   )
   const missingYear = keepItaly.filter(e => !e.acquisition_year)
   const missingValue = keepItaly.filter(e =>

@@ -171,13 +171,12 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.badge-keep-italy { background: var(--olive); color: var(--paper); }
-.badge-keep-us,
-.badge-keep-texas { background: var(--olive-soft); color: var(--ink); } /* keep-texas alias for old DB rows */
+.badge-ship-italy { background: var(--olive); color: var(--paper); }
 .badge-sell { background: var(--terracotta); color: white; }
 .badge-donate { background: var(--ink-soft); color: white; }
 .badge-dispose { background: var(--ink); color: white; }
 .badge-give-family { background: var(--terracotta-soft); color: var(--ink); }
+.badge-consume { background: #7a8c9e; color: white; }
 .badge-needs-human { background: var(--gold); color: var(--ink); }
 
 /* Sync indicator */
@@ -598,6 +597,34 @@ body {
   font-size: 22px;
   font-weight: 400;
   margin-bottom: 20px;
+}
+
+/* Phase picker (NOW / COLORADO toggle pills) */
+.phase-picker {
+  display: flex;
+  gap: 8px;
+}
+.phase-pill {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.phase-pill.active {
+  border-color: var(--terracotta);
+  background: var(--terracotta);
+  color: white;
+}
+.phase-pill:hover:not(.active) {
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 /* ── Settings page ─────────────────────────────────────────────────────────── */

@@ -5,7 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Entry, Box, Location, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, CernitaSettings } from '../lib/types'
+import { Entry, Box, Location, Decision, ActionPhase, ACTION_PHASE_LABELS, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, CernitaSettings } from '../lib/types'
 import { exportCSV } from '../lib/exportCsv'
 import { recomputeCosts, isOutdated } from '../lib/costs'
 import haptic from '../lib/haptic'
@@ -37,11 +37,11 @@ function fmtNet(n: number | null | undefined): string {
 
 // Re-compute costs from current rules (local math — no AI call)
 const ALL_DECISIONS: Decision[] = [
-  'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'NEEDS-HUMAN',
+  'SHIP-ITALY', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'CONSUME', 'NEEDS-HUMAN',
 ]
 
 // Decisions that mean the item will never be packed into a shipping box
-const NON_PACKABLE: Decision[] = ['SELL', 'DONATE', 'DISPOSE']
+const NON_PACKABLE: Decision[] = ['SELL', 'DONATE', 'DISPOSE', 'CONSUME']
 
 // Returns only open boxes whose destination is compatible with the item's decision
 function getCompatibleBoxes(boxes: Box[], decision: Decision): Box[] {
@@ -65,6 +65,7 @@ export default function LogPage() {
   const { log: entries, boxes, locations, settings, user } = state
 
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
+  const [phaseFilter, setPhaseFilter] = useState<ActionPhase | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null)
   const [toast, setToast] = useState('')
@@ -98,6 +99,9 @@ export default function LogPage() {
       if (activeFilters.has(e.final_decision)) return true
       return false
     })
+    if (phaseFilter) {
+      result = result.filter(e => e.action_phase === phaseFilter)
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase()
       result = result.filter(e =>
@@ -117,6 +121,13 @@ export default function LogPage() {
 
   const outdatedCount = entries.filter(e => isOutdated(e, settings)).length
   const unboxedCount  = entries.filter(e => e.box_id == null).length
+
+  // Phase counts
+  const phaseCounts: Record<ActionPhase, number> = {
+    'NOW': entries.filter(e => e.action_phase === 'NOW').length,
+    'COLORADO': entries.filter(e => e.action_phase === 'COLORADO').length,
+  }
+  const hasPhaseData = phaseCounts.NOW > 0 || phaseCounts.COLORADO > 0
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -178,7 +189,7 @@ export default function LogPage() {
           {entries.length > 0 && (
             <div className="log-summary">
               <span className="log-summary-total">
-                {activeFilters.size > 0
+                {activeFilters.size > 0 || phaseFilter
                   ? `Showing ${filtered.length} of ${entries.length}`
                   : `${entries.length} item${entries.length !== 1 ? 's' : ''}`}
               </span>
@@ -236,13 +247,37 @@ export default function LogPage() {
             </div>
           )}
 
+          {/* Phase filter pills */}
+          {entries.length > 0 && hasPhaseData && (
+            <div className="log-filters" style={{ marginTop: 0 }}>
+              <button
+                className={`filter-pill ${phaseFilter === null ? 'active' : ''}`}
+                onClick={() => setPhaseFilter(null)}
+              >
+                All phases
+              </button>
+              {(Object.keys(ACTION_PHASE_LABELS) as ActionPhase[])
+                .filter(p => phaseCounts[p] > 0)
+                .map(p => (
+                  <button
+                    key={p}
+                    className={`filter-pill ${phaseFilter === p ? 'active' : ''}`}
+                    onClick={() => setPhaseFilter(prev => prev === p ? null : p)}
+                  >
+                    {ACTION_PHASE_LABELS[p].en}
+                    <span className="filter-pill-count">{phaseCounts[p]}</span>
+                  </button>
+                ))}
+            </div>
+          )}
+
           {/* List */}
           {filtered.length === 0 ? (
             <EmptyState
               hasEntries={entries.length > 0}
               hasFilters={activeFilters.size > 0}
               hasSearch={!!searchQuery.trim()}
-              onClear={() => { setActiveFilters(new Set()); setSearchQuery('') }}
+              onClear={() => { setActiveFilters(new Set()); setPhaseFilter(null); setSearchQuery('') }}
             />
           ) : (
             <div className="log-list">
@@ -351,7 +386,8 @@ function EntryRow({ entry, outdated, onClick }: {
             {entry.shipping_restriction === 'prohibited' && <span className="badge-hazmat">🚫</span>}
             {entry.shipping_restriction === 'restricted' && <span className="badge-hazmat-warn">⚠️</span>}
             <span className={DECISION_BADGE_CLASS[entry.final_decision as Decision] ?? 'badge'}>
-              {entry.final_decision.replace('KEEP-', '').replace('-', ' ')}
+              {entry.final_decision === 'SHIP-ITALY' ? 'Italy'
+                : DECISION_LABELS[entry.final_decision as Decision]?.en ?? entry.final_decision.replace('-', ' ')}
             </span>
           </div>
         </div>
@@ -686,6 +722,8 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
                   ? 'Being sold — not packed into a box · Da vendere'
                   : entry.final_decision === 'DONATE'
                   ? 'Being donated — not packed · Da donare'
+                  : entry.final_decision === 'CONSUME'
+                  ? 'Being used up — not packed · Da consumare'
                   : 'Being disposed — not packed · Da smaltire'}
               </p>
             </div>

@@ -64,7 +64,7 @@ function statusBadgeClass(status: TripStatus): string {
 const SUITCASE_CLASSES = ['checked', 'carry_on', 'personal_item'] as const
 
 const VALID_DESTINATIONS: Decision[] = [
-  'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY',
+  'SHIP-ITALY', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'CONSUME',
 ]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -697,7 +697,7 @@ function AddSuitcaseOverlay({ trip, boxes, settings, usDestination, onClose, onC
   onCreated: (b: Box) => void
 }) {
   const [suitcaseClass, setSuitcaseClass] = useState<'checked' | 'carry_on' | 'personal_item'>('checked')
-  const [destination, setDestination] = useState<Decision>('KEEP-ITALY')
+  const [destination, setDestination] = useState<Decision>('SHIP-ITALY')
   const [weightLimit, setWeightLimit] = useState<number>(settings.checkedBagLimitLb)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
