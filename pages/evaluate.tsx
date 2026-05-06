@@ -1,4 +1,5 @@
 import Head from 'next/head'
+import { useRouter } from 'next/router'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import AuthGuard from '../components/AuthGuard'
 import Nav from '../components/Nav'
@@ -45,6 +46,7 @@ interface AiResult {
   shipping_restriction_note: string | null
   shipping_restriction_note_it: string | null
   oversized: boolean | null
+  voltage_incompatible: boolean | null
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -98,23 +100,30 @@ async function captureFrame(video: HTMLVideoElement, maxBytes = 200_000): Promis
 // ─── Page component ───────────────────────────────────────────────────────────
 
 export default function EvaluatePage() {
+  const router = useRouter()
   const { state, dispatch } = useApp()
   const { settings, user, boxes } = state
 
   const [phase, setPhase] = useState<EvalPhase>('camera')
   const [description, setDescription] = useState('')
   const [cameraBlocked, setCameraBlocked] = useState(false)
-  const [aiResult, setAiResult] = useState<AiResult | null>(null)
   const [capturedBase64, setCapturedBase64] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
   const [toastMsg, setToastMsg] = useState('')
+
+  // Multi-item state
+  const [aiResults, setAiResults] = useState<AiResult[]>([])
+  const [currentItemIndex, setCurrentItemIndex] = useState(0)
+  const [savedCount, setSavedCount] = useState(0)
+  const aiResult = aiResults[currentItemIndex] ?? null
+  const isMultiItem = aiResults.length > 1
 
   // Override overlay state
   const [overrideDecision, setOverrideDecision] = useState<Decision>('NEEDS-HUMAN')
   const [overrideReason, setOverrideReason] = useState('')
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
 
-  // Post-save box prompt state
+  // Post-save box prompt state (single-item only)
   const [savedEntryId, setSavedEntryId] = useState<number | null>(null)
   const [savedItemName, setSavedItemName] = useState('')
   const [savedEntryDecision, setSavedEntryDecision] = useState<Decision | null>(null)
@@ -225,17 +234,25 @@ export default function EvaluatePage() {
         throw new Error(`API_${res.status}:${body?.error ?? ''}`)
       }
       const data = await res.json()
+      const items: AiResult[] = (data.items ?? [data]).map((item: AiResult) => {
+        // Sanitize: guard against unexpected decision values
+        if (!VALID_DECISIONS.includes(item.final_decision)) {
+          console.warn('Unexpected final_decision from AI:', item.final_decision)
+          item.final_decision = 'NEEDS-HUMAN'
+          item.confidence = 'low'
+        }
+        if (!item.confidence) item.confidence = 'medium'
+        return item
+      })
 
-      // Sanitize: guard against unexpected decision values
-      if (!VALID_DECISIONS.includes(data.final_decision)) {
-        console.warn('Unexpected final_decision from AI:', data.final_decision)
-        data.final_decision = 'NEEDS-HUMAN'
-        data.confidence = 'low'
+      if (items.length === 0) {
+        throw new Error('AI returned no items')
       }
-      if (!data.confidence) data.confidence = 'medium'
 
-      setAiResult(data as AiResult)
-      setOverrideDecision(data.final_decision)
+      setAiResults(items)
+      setCurrentItemIndex(0)
+      setSavedCount(0)
+      setOverrideDecision(items[0].final_decision)
       setPhase('result')
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return // user cancelled
@@ -263,6 +280,9 @@ export default function EvaluatePage() {
   function handleCancel() {
     abortRef.current?.abort()
     setCapturedBase64(null)
+    setAiResults([])
+    setCurrentItemIndex(0)
+    setSavedCount(0)
     setPhase(cameraBlocked ? 'text' : 'camera')
   }
 
@@ -312,6 +332,7 @@ export default function EvaluatePage() {
       shipping_restriction_note: aiResult.shipping_restriction_note ?? null,
       shipping_restriction_note_it: aiResult.shipping_restriction_note_it ?? null,
       oversized: aiResult.oversized ?? false,
+      voltage_incompatible: aiResult.voltage_incompatible ?? false,
     }
 
     const { data, error } = await supabase
@@ -330,17 +351,49 @@ export default function EvaluatePage() {
     // Optimistic local update (Realtime will also fire)
     if (data) dispatch({ type: 'UPSERT_ENTRY', entry: data })
 
+    haptic.confirm()
+    const newSavedCount = savedCount + 1
+    setSavedCount(newSavedCount)
+
+    // ── Multi-item: advance to next item ──
+    if (isMultiItem && currentItemIndex < aiResults.length - 1) {
+      const nextIdx = currentItemIndex + 1
+      const nextItem = aiResults[nextIdx]
+      setCurrentItemIndex(nextIdx)
+      setOverrideDecision(nextItem.final_decision)
+      setOverrideReason('')
+      setErrorMsg('')
+      setToastMsg(`✓ ${aiResult.item_name} saved · ${nextIdx + 1} of ${aiResults.length}`)
+      setPhase('result')
+      // Clear toast after a moment
+      setTimeout(() => setToastMsg(''), 2200)
+      return
+    }
+
+    // ── Single item or last item in batch ──
     const savedName = aiResult.item_name
     const savedNameIt = aiResult.item_name_it
 
     // Reset evaluate state
-    setAiResult(null)
     setCapturedBase64(null)
     setDescription('')
     setOverrideReason('')
     setErrorMsg('')
 
-    // Store saved entry for box prompt
+    if (isMultiItem) {
+      // Multi-item complete: show summary, reset after toast
+      setToastMsg(`${newSavedCount} items saved · ${newSavedCount} oggetti salvati`)
+      setSavedItemName(`${newSavedCount} items`)
+      setSavedEntryDecision(null)
+      setSavedEntryOversized(false)
+      setSavedEntryId(null)
+      setPackBoxId('')
+      setPhase('saved')
+      setTimeout(() => resetToCamera(), 3000)
+      return
+    }
+
+    // Single-item flow (unchanged)
     setSavedEntryId(data.id)
     setSavedItemName(savedName)
     setSavedEntryDecision(decision)
@@ -351,7 +404,6 @@ export default function EvaluatePage() {
       ? `${savedName} · ${savedNameIt} — Saved · Salvato`
       : `${savedName} — Saved · Salvato`
     setToastMsg(toast)
-    haptic.confirm()
     setPhase('saved')
 
     // Auto-reset conditions:
@@ -372,6 +424,9 @@ export default function EvaluatePage() {
   // ─── Reset to camera ──────────────────────────────────────────────────────
 
   function resetToCamera() {
+    setAiResults([])
+    setCurrentItemIndex(0)
+    setSavedCount(0)
     setSavedEntryId(null)
     setSavedItemName('')
     setSavedEntryDecision(null)
@@ -517,17 +572,34 @@ export default function EvaluatePage() {
 
         {/* ── Result card (States C, saving) ── */}
         {(phase === 'result' || phase === 'override' || phase === 'saving') && aiResult && (
-          <ResultCard
-            result={aiResult}
-            saving={phase === 'saving'}
-            errorMsg={errorMsg}
-            usDestination={settings.usDestination}
-            onConfirm={() => saveEntry(aiResult.final_decision)}
-            onOverride={() => {
-              setOverrideDecision(aiResult.final_decision)
-              setPhase('override')
-            }}
-          />
+          <>
+            {isMultiItem && (
+              <div className="multi-item-stepper">
+                <span className="multi-item-counter">
+                  Item {currentItemIndex + 1} of {aiResults.length}
+                </span>
+                <span className="multi-item-dots">
+                  {aiResults.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`multi-item-dot${i < currentItemIndex ? ' done' : ''}${i === currentItemIndex ? ' current' : ''}`}
+                    />
+                  ))}
+                </span>
+              </div>
+            )}
+            <ResultCard
+              result={aiResult}
+              saving={phase === 'saving'}
+              errorMsg={errorMsg}
+              usDestination={settings.usDestination}
+              onConfirm={() => saveEntry(aiResult.final_decision)}
+              onOverride={() => {
+                setOverrideDecision(aiResult.final_decision)
+                setPhase('override')
+              }}
+            />
+          </>
         )}
 
         {/* ── Override overlay (State D) ── */}
@@ -549,9 +621,42 @@ export default function EvaluatePage() {
             <div className="saved-card">
               <div className="saved-ornament">✓</div>
               <h3 className="saved-name serif">{savedItemName}</h3>
-              <p className="saved-subtitle italic ink-soft">Salvato con successo</p>
+              <p className="saved-subtitle italic ink-soft">
+                {isMultiItem || savedCount > 1
+                  ? `${savedCount} oggetti salvati con successo`
+                  : 'Salvato con successo'}
+              </p>
 
-              {savedEntryOversized ? (
+              {/* Multi-item batch complete — auto-resets via setTimeout */}
+              {savedCount > 1 && !savedEntryDecision ? (
+                <p className="ink-soft" style={{ fontSize: 13, marginTop: 8 }}>
+                  Returning to camera… · Torno alla fotocamera…
+                </p>
+
+              ) : /* NEEDS-HUMAN → route to Discuss */
+              savedEntryDecision === 'NEEDS-HUMAN' ? (
+                <div style={{ marginTop: 16 }}>
+                  <p className="ink-soft" style={{ fontSize: 13, marginBottom: 12 }}>
+                    This item needs a joint decision. · Questo oggetto richiede una decisione condivisa.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="btn-secondary"
+                      style={{ flex: 1 }}
+                      onClick={resetToCamera}
+                    >
+                      Continue · Continua
+                    </button>
+                    <button
+                      className="btn-primary"
+                      style={{ flex: 2 }}
+                      onClick={() => router.push('/discuss')}
+                    >
+                      Go to Discuss · Vai a Discutere
+                    </button>
+                  </div>
+                </div>
+              ) : savedEntryOversized ? (
                 <div className="oversized-note" style={{ marginTop: 16 }}>
                   <p className="oversized-note-text">
                     ◱ Oversized — ships separately · <em>Oggetto di grandi dimensioni, spedizione separata</em>
@@ -702,6 +807,19 @@ function ResultCard({
               {result.shipping_restriction_note && (
                 <p className="hazmat-note">{result.shipping_restriction_note}</p>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Voltage incompatibility banner */}
+        {result.voltage_incompatible && (
+          <div className="voltage-banner">
+            <span className="voltage-icon">⚡</span>
+            <div className="voltage-body">
+              <p className="voltage-title">110V — incompatible with Italy · Non compatibile con l&apos;Italia</p>
+              <p className="voltage-note">
+                Italy uses 220V/50Hz. This item needs a step-down transformer or replacement.
+              </p>
             </div>
           </div>
         )}

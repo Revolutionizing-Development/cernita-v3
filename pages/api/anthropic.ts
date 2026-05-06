@@ -41,12 +41,35 @@ MODEL IDENTIFICATION — inspect the photo and description carefully for brand m
 
 OVERSIZED ITEMS — set "oversized": true for any item that physically cannot fit inside a standard 27-gallon plastic moving box (roughly 24" × 16" × 12"). Examples: rugs, rolled carpets, sofas, armchairs, bed frames, large mirrors, bicycles, golf bags, surfboards, rolled canvases larger than ~20"×30", standing lamps, large potted plants, kayaks. Standard household items that fit in a box (even if heavy) should be false.
 
-Evaluate this item and return a JSON object with these fields:
+VOLTAGE INCOMPATIBILITY — Italy uses 220V/50Hz; the US uses 110V/60Hz. Flag items with US-only power plugs or hardwired 110V motors as "voltage_incompatible": true. This includes:
+- Small appliances (hair dryers, blenders, toasters, coffee makers, electric kettles, irons)
+- Power tools (drills, saws, sanders, routers) with US-voltage motors
+- Lamps and light fixtures with hardwired US plugs (unless bulb-only / LED with adapter)
+- Heating/cooling appliances (space heaters, window fans, humidifiers)
+- Electronics whose power supply label does NOT say "100–240V" or "universal input"
+Items that are voltage-compatible should be false:
+- Devices with "100–240V~" or "universal" on the power brick/label (most laptops, phone chargers, game consoles)
+- Battery-only items (no plug at all)
+- Non-electrical items (furniture, clothing, books, kitchenware without motors)
+When voltage_incompatible is true, factor the cost of a step-down transformer (~$30–60 for items under 300W, ~$100–200 for high-wattage appliances like hair dryers, power tools) into the rationale. If the transformer cost plus the shipping cost exceeds 50% of the Italian replacement cost, recommend SELL instead of KEEP-ITALY.
+
+MULTI-ITEM DETECTION — carefully examine the photo. If you see MULTIPLE DISTINCT items that should each be evaluated separately (e.g. a shelf with several appliances, a table with assorted objects, a group of tools), return a JSON object with an "items" array. Each element in the array is a full evaluation object. If you see only ONE item (or a set that logically counts as one — e.g. a pair of shoes, a set of dishes, a tool with its case), return a single JSON object (no "items" wrapper).
+
+Guidelines for splitting:
+- A bookshelf WITH books = multiple items (the shelf + the book collection)
+- A pair of speakers = one item (they go together)
+- A desk with a lamp and a monitor on it = three items (desk, lamp, monitor)
+- A box of assorted kitchen utensils = one item (evaluate as a set)
+- A nightstand with an alarm clock = two items
+- Do NOT split beyond ~8 items per photo — group small similar items (e.g. "assorted kitchen utensils", "stack of paperback novels")
+
+Each evaluation object (whether single or inside the "items" array) must have these fields:
 {
   "item_name": "English name",
   "item_name_it": "Italian name",
   "item_model": "Brand + model name/number string, or null",
   "oversized": true or false,
+  "voltage_incompatible": true or false,
   "final_decision": one of KEEP-ITALY|KEEP-US|SELL|DONATE|DISPOSE|GIVE-FAMILY|NEEDS-HUMAN,
   "estimated_resale_value": number or null,
   "replacement_cost": number or null,
@@ -69,7 +92,7 @@ Evaluate this item and return a JSON object with these fields:
   "shipping_restriction_note_it": "Italian explanation, or null if none"
 }
 
-Return ONLY the JSON object, no markdown, no explanation.
+Return ONLY valid JSON, no markdown, no explanation. For a single item, return the object directly. For multiple items, return: { "items": [ ...objects ] }
 
 ${description ? `Item description: ${description}` : ''}`
 
@@ -98,21 +121,32 @@ ${description ? `Item description: ${description}` : ''}`
   try {
     const response = await anthropic.messages.create({
       model: settings.aiModel || 'claude-sonnet-4-5',
-      max_tokens: 1536,
+      max_tokens: 4096,
       messages,
     })
 
     const raw = response.content[0].type === 'text' ? response.content[0].text : ''
     // Strip markdown code fences — Claude sometimes wraps JSON in ```json … ``` despite instructions
     const text = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-    let result
+    let parsed
     try {
-      result = JSON.parse(text)
+      parsed = JSON.parse(text)
     } catch {
       console.error('Failed to parse AI JSON response:', text.slice(0, 300))
       return res.status(500).json({ error: 'AI returned invalid JSON' })
     }
-    res.status(200).json(result)
+
+    // Normalize: always return { items: [...] }
+    let items: unknown[]
+    if (Array.isArray(parsed)) {
+      items = parsed
+    } else if (parsed && Array.isArray(parsed.items)) {
+      items = parsed.items
+    } else {
+      items = [parsed]
+    }
+
+    res.status(200).json({ items })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('Anthropic API error:', msg)

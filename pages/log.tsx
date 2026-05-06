@@ -7,6 +7,7 @@ import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import { Entry, Box, Location, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, CernitaSettings } from '../lib/types'
 import { exportCSV } from '../lib/exportCsv'
+import { recomputeCosts, isOutdated } from '../lib/costs'
 import haptic from '../lib/haptic'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -35,24 +36,6 @@ function fmtNet(n: number | null | undefined): string {
 }
 
 // Re-compute costs from current rules (local math — no AI call)
-function recomputeCosts(entry: Entry, settings: CernitaSettings) {
-  const weight = entry.weight_lb ?? 0
-  const volume = entry.volume_cuft ?? 0
-  const resale = entry.estimated_resale_value ?? 0
-  const ship_cost = weight * settings.shippingRatePerLb + volume * settings.shippingRatePerCuFt
-  const storage_cost_total = volume * settings.storageRatePerCuFt * settings.monthsInStorage
-  return {
-    ship_cost: ship_cost || null,
-    storage_cost_total: storage_cost_total || null,
-    net_cost_ship: ship_cost ? ship_cost - resale : null,
-    net_cost_storage: storage_cost_total ? storage_cost_total - resale : null,
-  }
-}
-
-function isOutdated(entry: Entry, settings: CernitaSettings): boolean {
-  return !!entry.rules_version && entry.rules_version !== settings.rulesVersion
-}
-
 const ALL_DECISIONS: Decision[] = [
   'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'NEEDS-HUMAN',
 ]
@@ -364,6 +347,7 @@ function EntryRow({ entry, outdated, onClick }: {
             {outdated && <span className="badge-outdated">⟳</span>}
             {entry.override_reason && <span className="badge-override">↩</span>}
             {entry.oversized && <span className="badge-oversized">◱</span>}
+            {entry.voltage_incompatible && <span className="badge-voltage">⚡</span>}
             {entry.shipping_restriction === 'prohibited' && <span className="badge-hazmat">🚫</span>}
             {entry.shipping_restriction === 'restricted' && <span className="badge-hazmat-warn">⚠️</span>}
             <span className={DECISION_BADGE_CLASS[entry.final_decision as Decision] ?? 'badge'}>
@@ -670,6 +654,19 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
                     {entry.shipping_restriction_note_it}
                   </p>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Voltage incompatibility */}
+          {entry.voltage_incompatible && (
+            <div className="voltage-banner" style={{ marginBottom: 16 }}>
+              <span className="voltage-icon">⚡</span>
+              <div className="voltage-body">
+                <p className="voltage-title">110V — incompatible with Italy · Non compatibile</p>
+                <p className="voltage-note">
+                  Italy uses 220V/50Hz. Needs a step-down transformer or replacement.
+                </p>
               </div>
             </div>
           )}

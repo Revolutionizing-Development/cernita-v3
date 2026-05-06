@@ -29,6 +29,7 @@ export interface Entry {
   packing_notes_it: string | null
   item_model: string | null
   oversized: boolean | null
+  voltage_incompatible: boolean | null
   photo_data: string | null
   bin_id: string | null
   box_id: number | null
@@ -36,6 +37,12 @@ export interface Entry {
   shipping_restriction: 'none' | 'restricted' | 'prohibited' | null
   shipping_restriction_note: string | null
   shipping_restriction_note_it: string | null
+  // Customs fields (spec 015)
+  acquisition_year: number | null
+  customs_eligible: boolean | null
+  customs_category: CustomsCategory | null
+  customs_notes: string | null
+  customs_exclude: boolean | null
 }
 
 export type Decision =
@@ -147,6 +154,57 @@ export interface Trip {
   created_at: string
 }
 
+// ─── Customs types (spec 015) ─────────────────────────────────────────────
+
+export type CustomsCategory =
+  | 'mobili'               // Mobili e arredamento
+  | 'abbigliamento'        // Abbigliamento
+  | 'libri'                // Libri e documenti
+  | 'elettronica'          // Apparecchiature elettroniche
+  | 'strumenti_musicali'   // Strumenti musicali
+  | 'arte'                 // Arte e oggetti di valore affettivo
+  | 'cucina'               // Cucina e utensili
+  | 'sport'                // Sport e tempo libero
+  | 'altri'                // Altri beni personali
+
+export const CUSTOMS_CATEGORY_LABELS: Record<CustomsCategory, { it: string; en: string }> = {
+  mobili:             { it: 'Mobili e arredamento',                     en: 'Furniture & furnishings' },
+  abbigliamento:      { it: 'Abbigliamento',                           en: 'Clothing' },
+  libri:              { it: 'Libri e documenti',                       en: 'Books & documents' },
+  elettronica:        { it: 'Apparecchiature elettroniche',            en: 'Electronics' },
+  strumenti_musicali: { it: 'Strumenti musicali',                     en: 'Musical instruments' },
+  arte:               { it: 'Arte e oggetti di valore affettivo',      en: 'Art & sentimental items' },
+  cucina:             { it: 'Cucina e utensili',                       en: 'Kitchen & utensils' },
+  sport:              { it: 'Sport e tempo libero',                    en: 'Sports & leisure' },
+  altri:              { it: 'Altri beni personali',                    en: 'Other personal goods' },
+}
+
+export interface CustomsDeclarantProfile {
+  namePrimary: string
+  dobPrimary: string         // ISO date string
+  nationalityPrimary: string
+  nameSecondary: string
+  dobSecondary: string
+  bothDeclarants: boolean
+  usAddress: string
+  italyAddress: string       // reuses settings.italyAddress if set
+  portOfEntry: string        // e.g. "Genova", "Livorno", "Roma Fiumicino"
+  arrivalDateEstimate: string
+}
+
+export const DEFAULT_CUSTOMS_PROFILE: CustomsDeclarantProfile = {
+  namePrimary: '',
+  dobPrimary: '',
+  nationalityPrimary: 'American',
+  nameSecondary: '',
+  dobSecondary: '',
+  bothDeclarants: true,
+  usAddress: '',
+  italyAddress: '',
+  portOfEntry: '',
+  arrivalDateEstimate: '',
+}
+
 export interface CernitaSettings {
   // Move route
   usDestination: string        // the intermediate US city (e.g. "Colorado Springs")
@@ -173,6 +231,8 @@ export interface CernitaSettings {
   motionEnabled: boolean
   // Rule versioning (bumped when rates change)
   rulesVersion: string
+  // Customs declarant profile (spec 015)
+  customsProfile: CustomsDeclarantProfile
 }
 
 export const DEFAULT_SETTINGS: CernitaSettings = {
@@ -191,4 +251,5 @@ export const DEFAULT_SETTINGS: CernitaSettings = {
   italyAddress: '',
   motionEnabled: true,
   rulesVersion: '1.0.0',
+  customsProfile: DEFAULT_CUSTOMS_PROFILE,
 }

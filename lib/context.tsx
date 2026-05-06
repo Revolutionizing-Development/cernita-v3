@@ -149,17 +149,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Auth state listener
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // authLoading: false on the very first fire — we now know whether there's a session
-        dispatch({ type: 'SET_SESSION', session, user: session?.user ?? null, authLoading: false })
-        if (session) {
-          await loadAll(dispatch)
-          setupRealtime(dispatch)
-        }
+    let didFire = false
+
+    // Safety timeout: if onAuthStateChange never fires (Supabase unreachable,
+    // project paused, network down), stop blocking the UI after 5 seconds.
+    const timeout = setTimeout(() => {
+      if (!didFire) {
+        console.warn('Supabase auth did not respond within 5s — unblocking UI')
+        dispatch({ type: 'SET_SESSION', session: null, user: null, authLoading: false })
       }
-    )
-    return () => subscription.unsubscribe()
+    }, 5000)
+
+    let subscription: { unsubscribe: () => void } | null = null
+
+    try {
+      const result = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          didFire = true
+          clearTimeout(timeout)
+          // authLoading: false on the very first fire — we now know whether there's a session
+          dispatch({ type: 'SET_SESSION', session, user: session?.user ?? null, authLoading: false })
+          if (session) {
+            await loadAll(dispatch)
+            setupRealtime(dispatch)
+          }
+        }
+      )
+      subscription = result.data.subscription
+    } catch (err) {
+      console.error('Failed to set up Supabase auth listener:', err)
+      clearTimeout(timeout)
+      dispatch({ type: 'SET_SESSION', session: null, user: null, authLoading: false })
+    }
+
+    return () => {
+      clearTimeout(timeout)
+      subscription?.unsubscribe()
+    }
   }, [])
 
   // Persist settings changes
@@ -181,22 +207,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
 async function loadAll(dispatch: React.Dispatch<Action>) {
   dispatch({ type: 'SET_SYNC', status: 'syncing' })
 
-  const [entriesRes, boxesRes, locationsRes, tripsRes] = await Promise.all([
-    supabase.from('cernita_entries').select('*').order('created_at', { ascending: false }),
-    supabase.from('cernita_boxes').select('*').order('created_at'),
-    supabase.from('cernita_locations').select('*').order('sort_order'),
-    supabase.from('cernita_trips').select('*').order('departure_date', { ascending: true }),
-  ])
+  try {
+    const [entriesRes, boxesRes, locationsRes, tripsRes] = await Promise.all([
+      supabase.from('cernita_entries').select('*').order('created_at', { ascending: false }),
+      supabase.from('cernita_boxes').select('*').order('created_at'),
+      supabase.from('cernita_locations').select('*').order('sort_order'),
+      supabase.from('cernita_trips').select('*').order('departure_date', { ascending: true }),
+    ])
 
-  if (!entriesRes.error && entriesRes.data)
-    dispatch({ type: 'SET_LOG', entries: entriesRes.data as Entry[] })
-  if (!boxesRes.error && boxesRes.data)
-    dispatch({ type: 'SET_BOXES', boxes: boxesRes.data as Box[] })
-  if (!locationsRes.error && locationsRes.data)
-    dispatch({ type: 'SET_LOCATIONS', locations: locationsRes.data as Location[] })
-  if (!tripsRes.error && tripsRes.data)
-    dispatch({ type: 'SET_TRIPS', trips: tripsRes.data as Trip[] })
+    if (!entriesRes.error && entriesRes.data)
+      dispatch({ type: 'SET_LOG', entries: entriesRes.data as Entry[] })
+    if (!boxesRes.error && boxesRes.data)
+      dispatch({ type: 'SET_BOXES', boxes: boxesRes.data as Box[] })
+    if (!locationsRes.error && locationsRes.data)
+      dispatch({ type: 'SET_LOCATIONS', locations: locationsRes.data as Location[] })
+    if (!tripsRes.error && tripsRes.data)
+      dispatch({ type: 'SET_TRIPS', trips: tripsRes.data as Trip[] })
+  } catch (err) {
+    console.error('Failed to load data from Supabase:', err)
+  }
 
+  // Always mark as online so the UI never gets stuck in a loading state
   dispatch({ type: 'SET_SYNC', status: 'online' })
 }
 

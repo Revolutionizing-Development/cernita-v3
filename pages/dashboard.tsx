@@ -90,19 +90,6 @@ export default function DashboardPage() {
   const locationName = (id: number | null) =>
     id ? (locations.find(l => l.id === id)?.name ?? '—') : '—'
 
-  if (syncStatus === 'syncing' && total === 0) {
-    return (
-      <AuthGuard>
-        <div className="app-shell">
-          <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <p className="ink-soft italic">Loading… · Caricamento…</p>
-          </div>
-          <Nav />
-        </div>
-      </AuthGuard>
-    )
-  }
-
   return (
     <AuthGuard>
       <Head><title>Cernita — Overview</title></Head>
@@ -119,9 +106,13 @@ export default function DashboardPage() {
 
           {total === 0 ? (
             <div className="empty-state">
-              <div style={{ fontSize: 36, marginBottom: 12 }}>◈</div>
-              <h3>Nothing evaluated yet</h3>
-              <p className="italic ink-soft">Evaluate your first item to see the overview.</p>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>{syncStatus === 'syncing' ? '◌' : '◈'}</div>
+              <h3>{syncStatus === 'syncing' ? 'Loading… · Caricamento…' : 'Nothing evaluated yet'}</h3>
+              <p className="italic ink-soft">
+                {syncStatus === 'syncing'
+                  ? 'Connecting to database… · Connessione al database…'
+                  : 'Evaluate your first item to see the overview.'}
+              </p>
             </div>
           ) : (
             <>

@@ -18,17 +18,19 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   // Still waiting for Supabase to confirm whether a session exists
   if (state.authLoading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--paper)' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--paper)', gap: 12 }}>
         <span className="serif" style={{ fontSize: '32px', color: 'var(--ink-soft)' }}>Cernita</span>
+        <span style={{ fontSize: '13px', color: 'var(--ink-soft)', fontStyle: 'italic' }}>Connecting… · Connessione…</span>
       </div>
     )
   }
 
-  // Confirmed: no session
+  // Confirmed: no session — redirect to login (useEffect handles redirect)
   if (state.session === null) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--paper)' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--paper)', gap: 12 }}>
         <span className="serif" style={{ fontSize: '32px', color: 'var(--ink-soft)' }}>Cernita</span>
+        <span style={{ fontSize: '13px', color: 'var(--ink-soft)', fontStyle: 'italic' }}>Redirecting… · Reindirizzamento…</span>
       </div>
     )
   }

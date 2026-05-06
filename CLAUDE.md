@@ -68,15 +68,18 @@ Read `.specify/memory/constitution.md` before any implementation work. It contai
 - Shipping restrictions / hazmat — AI flags prohibited/restricted items; 🚫/⚠️ badges in Log and result card; migration 008
 - Storage requirements — boxes get climate_controlled/standard/garage_ok label; shown in BoxCard and BoxDetailOverlay; migration 008
 - Item model identification — AI identifies brand+model from photo; shown in result card and detail overlay; migration 009
+- Voltage incompatibility — AI flags US 110V/60Hz items; ⚡ banner in result card + detail overlay; ⚡ badge in Log; transformer cost factored into rationale; migration 012
+- Bulk re-derive — Settings "Re-derive all" button batch-updates outdated entries with current rates via `lib/costs.ts`
+- Discuss tab — NEEDS-HUMAN items list with DiscussCard, resolve workflow (6 decision options), Nav badge, evaluate→discuss routing; bilingual flags + AI rationale shown
+- Multi-item photo evaluation — AI detects multiple items per photo, returns array; stepper UI ("Item 1 of N") with progress dots; each item confirmed/overridden/saved independently
+
+- Italian customs declaration (spec 015) — declarant profile in Settings, customs review at `/customs` with category grouping (9 Italian customs categories), completeness checks, EUR conversion, printable dichiarazione sostitutiva + elenco beni. Auto-category assignment via keyword matching. Covers EU Reg. 1186/2009 Art. 3 (third-country provision for US citizens). Migration 015.
+- Data deletion flow — Settings → "Delete all my data" with two-step confirmation. Deletes entries, boxes, trips, locations from Supabase, clears localStorage, signs out. Constitution P3 compliance.
 
 **Outstanding (not yet built):**
-- Discuss tab — page exists as stub; Constitution P4 says structural. Needs: NEEDS-HUMAN items list, per-user positions, resolution workflow, comment thread
-- Bulk re-derive — Settings button currently directs to Log; needs actual bulk re-compute of costs using current rates
-- Data deletion flow — Constitution P3 requires full data deletion capability
-- Voltage incompatibility flagging — flag US 110V/60Hz items that will be unusable in Italy (220V/50Hz) without transformer
-- Multi-item photo evaluation — identify and evaluate multiple items from a single photo (currently 1 photo = 1 item)
+- Discuss tab: comment thread — per-user positions and back-and-forth comments between both users (current resolve workflow is functional but one-sided)
 - Moving company / insurance manifest formats — Constitution P12 requires format-matched outputs for actual carrier and insurer
-- 11 specs for shipped features — retroactive specs required by Constitution P10
+- 15 specs for shipped features — retroactive specs required by Constitution P10
 
 ## Design system
 
