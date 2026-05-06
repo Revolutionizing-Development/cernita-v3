@@ -218,9 +218,16 @@ export default function EvaluatePage() {
     abortRef.current = new AbortController()
 
     try {
+      // Get the current access token to pass to the API route
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      const accessToken = currentSession?.access_token
+
       const res = await fetch('/api/anthropic', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify({
           photoBase64,
           description: description.trim() || null,

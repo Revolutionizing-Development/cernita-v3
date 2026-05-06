@@ -1,8 +1,13 @@
-import { createBrowserClient } from '@supabase/ssr'
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-// Browser singleton using @supabase/ssr — sessions stored in cookies,
-// not localStorage. Token refresh handled automatically by middleware.ts.
+// Browser singleton using @supabase/supabase-js — sessions stored in
+// localStorage. No navigator.locks contention (unlike @supabase/ssr's
+// createBrowserClient which uses cookie-based locks and causes
+// "Lock was released because another request stole it" errors when
+// multiple concurrent Supabase calls compete for the auth-token lock).
+//
+// This app has no middleware.ts — SSR cookie auth is unnecessary.
+// Standard localStorage persistence + auto-refresh is all we need.
 let _supabase: SupabaseClient | null = null
 
 export function getSupabase(): SupabaseClient {
@@ -15,7 +20,13 @@ export function getSupabase(): SupabaseClient {
         'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.'
       )
     }
-    _supabase = createBrowserClient(url, key)
+    _supabase = createClient(url, key, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
   }
   return _supabase
 }
