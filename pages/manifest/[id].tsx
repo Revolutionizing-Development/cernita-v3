@@ -1,5 +1,4 @@
 import Head from 'next/head'
-import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import AuthGuard from '../../components/AuthGuard'
 import { useApp } from '../../lib/context'
@@ -30,19 +29,6 @@ export default function ManifestPage() {
   const totalVolume   = items.reduce((s, e) => s + (e.volume_cuft ?? 0), 0)
   const totalShipCost = items.reduce((s, e) => s + (e.ship_cost   ?? 0), 0)
   const unknownWeight = items.filter(e => e.weight_lb == null).length
-
-  const [triggered, setTriggered] = useState(false)
-
-  // Auto-print once data is ready
-  useEffect(() => {
-    if (box && !triggered) {
-      const timer = setTimeout(() => {
-        window.print()
-        setTriggered(true)
-      }, 600)
-      return () => clearTimeout(timer)
-    }
-  }, [box, triggered])
 
   const label = box ? getDecisionLabel(box.destination, settings.usDestination) : null
   const storageLabel = box?.storage_requirement

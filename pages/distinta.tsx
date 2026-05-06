@@ -1,5 +1,4 @@
 import Head from 'next/head'
-import { useEffect, useState } from 'react'
 import AuthGuard from '../components/AuthGuard'
 import { useApp } from '../lib/context'
 
@@ -21,8 +20,6 @@ export default function DistitaPage() {
   const { state } = useApp()
   const { log: entries, settings, user } = state
 
-  const [triggered, setTriggered] = useState(false)
-
   // Only KEEP-ITALY items
   const items = [...entries]
     .filter(e => e.final_decision === 'KEEP-ITALY')
@@ -35,17 +32,6 @@ export default function DistitaPage() {
   const today = new Date().toLocaleDateString('it-IT', {
     day: '2-digit', month: '2-digit', year: 'numeric',
   })
-
-  // Auto-print once loaded
-  useEffect(() => {
-    if (items.length > 0 && !triggered) {
-      const timer = setTimeout(() => {
-        window.print()
-        setTriggered(true)
-      }, 700)
-      return () => clearTimeout(timer)
-    }
-  }, [items.length, triggered])
 
   return (
     <AuthGuard>

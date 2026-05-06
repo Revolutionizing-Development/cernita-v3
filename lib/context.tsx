@@ -10,6 +10,7 @@ export type SyncStatus = 'online' | 'syncing' | 'offline'
 export interface AppState {
   session: Session | null
   user: User | null
+  authLoading: boolean   // true until first onAuthStateChange fires — never redirect while true
   log: Entry[]
   boxes: Box[]
   locations: Location[]
@@ -21,6 +22,7 @@ export interface AppState {
 const initialState: AppState = {
   session: null,
   user: null,
+  authLoading: true,
   log: [],
   boxes: [],
   locations: [],
@@ -32,7 +34,7 @@ const initialState: AppState = {
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
 type Action =
-  | { type: 'SET_SESSION'; session: Session | null; user: User | null }
+  | { type: 'SET_SESSION'; session: Session | null; user: User | null; authLoading: boolean }
   | { type: 'SET_LOG'; entries: Entry[] }
   | { type: 'UPSERT_ENTRY'; entry: Entry }
   | { type: 'DELETE_ENTRY'; id: number }
@@ -51,7 +53,7 @@ type Action =
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'SET_SESSION':
-      return { ...state, session: action.session, user: action.user }
+      return { ...state, session: action.session, user: action.user, authLoading: action.authLoading }
     case 'SET_LOG':
       return { ...state, log: action.entries }
     case 'UPSERT_ENTRY': {
@@ -149,7 +151,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        dispatch({ type: 'SET_SESSION', session, user: session?.user ?? null })
+        // authLoading: false on the very first fire — we now know whether there's a session
+        dispatch({ type: 'SET_SESSION', session, user: session?.user ?? null, authLoading: false })
         if (session) {
           await loadAll(dispatch)
           setupRealtime(dispatch)

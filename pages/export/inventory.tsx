@@ -1,5 +1,5 @@
 import Head from 'next/head'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import AuthGuard from '../../components/AuthGuard'
 import { useApp } from '../../lib/context'
 import { Decision, DECISION_LABELS, getDecisionLabel } from '../../lib/types'
@@ -32,18 +32,6 @@ export default function InventoryExportPage() {
   const [include, setInclude] = useState<Set<Decision>>(
     new Set(['KEEP-ITALY', 'KEEP-US', 'GIVE-FAMILY', 'NEEDS-HUMAN', 'SELL', 'DONATE', 'DISPOSE'] as Decision[])
   )
-
-  const [triggered, setTriggered] = useState(false)
-
-  useEffect(() => {
-    if (entries.length > 0 && !triggered) {
-      const timer = setTimeout(() => {
-        window.print()
-        setTriggered(true)
-      }, 700)
-      return () => clearTimeout(timer)
-    }
-  }, [entries.length, triggered])
 
   function toggleDecision(d: Decision) {
     setInclude(prev => {
