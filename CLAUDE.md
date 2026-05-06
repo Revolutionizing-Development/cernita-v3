@@ -10,23 +10,26 @@ Read `.specify/memory/constitution.md` before any implementation work. It contai
 
 - **Principle 1:** The user owns the decision. Never override silently.
 - **Principle 2:** Honest math, always shown. No hidden assumptions.
-- **Principle 3:** Data lives with the user (Supabase, user's own project).
+- **Principle 3:** Data belongs to the user (Supabase, portable, exportable, deletable).
 - **Principle 4:** Two people, one truth. Everything works for simultaneous use on two phones.
 - **Principle 6:** Intentional design. No framework defaults. Cormorant Garamond serif, terracotta + olive palette.
 - **Principle 7:** Architecture serves the user, not the developer.
 - **Principle 10:** Specs over code. When they disagree, the spec is the source of truth.
 - **Principle 11:** Bilingual output (English + Italian) for all permanent records.
+- **Principle 12:** Compliance with destination requirements (Italian customs, insurance, carrier formats).
 - **Principle 13:** Preservation is part of the math.
 
-## Architecture (rebuild)
+## Architecture
 
-This is a fresh rebuild. The previous single-file HTML app is being replaced. Key architectural decisions for the rebuild:
-
+- **Stack:** Next.js 14 Pages Router, TypeScript, Vercel, Supabase, no Tailwind, CSS custom properties only.
 - **No in-UI Supabase config.** Database connection is server-side.
-- **Normal authentication.** Login screen + session, not settings-field passwords.
-- **App calls its own backend.** No "Worker URL" or "Cernita URL" field.
+- **Normal authentication.** Login screen + session via Supabase Auth. `AuthGuard` wraps every page. Auth state uses `authLoading: boolean` — never redirects while auth is still initializing.
+- **App calls its own backend.** AI calls go through `/api/anthropic` — API key stays server-side.
 - **Household identity via authenticated user.** Not a typed string.
-- **Stack:** Vercel + Supabase + serverless functions.
+- **State:** `AppContext` with `useReducer` + Supabase Realtime subscriptions for two-phone sync.
+- **Settings in localStorage** — `CernitaSettings` persisted per browser. No settings DB table.
+- **Motion feature flag:** All CSS animations gated behind `.motion-enabled` class on `<body>`. `MotionGate` component in `_app.tsx` reads `settings.motionEnabled` and respects `prefers-reduced-motion`. Toggle in Settings.
+- **Print-to-PDF pages** — `/distinta`, `/export/inventory`, `/manifest/[id]`, `/labels` use `window.print()` via manual button. No auto-print (blocks JS).
 
 ## Spec-driven workflow
 
@@ -38,7 +41,7 @@ This is a fresh rebuild. The previous single-file HTML app is being replaced. Ke
 
 ## Feature status
 
-**Shipped in rebuild:**
+**Shipped with formal specs (001–014):**
 - 001-bilingual-item-names — AI returns EN + IT item names
 - 002-bilingual-rationale — AI returns EN + IT rationale paragraphs
 - 003-backend-proxy / 009-authentication — Supabase auth, AuthGuard, session
@@ -52,39 +55,57 @@ This is a fresh rebuild. The previous single-file HTML app is being replaced. Ke
 - 013-log-tab — Log page with filters, detail overlay, box assignment, location assignment
 - 014-settings-tab — Settings page with rates, AI model, bag limits, LocationsManager
 
-**Shipped (no formal spec yet — needs spec written):**
-- Unboxed item labelling — "◻ Unboxed" filter pill; location picker on loose items;
-  loose items shown with weight/volume/est-ship-cost in Bins location view
-- Shipping restrictions / hazmat — AI flags prohibited/restricted items (lithium batteries,
-  aerosols, flammables); 🚫/⚠️ badges in Log and result card; migration 008
-- Storage requirements — boxes get climate_controlled/standard/garage_ok label;
-  shown in BoxCard and BoxDetailOverlay; migration 008
-- Item model identification — AI identifies brand+model from photo for pricing accuracy;
-  shown in result card and detail overlay; migration 009
+**Shipped without formal specs (needs specs written — P10 violation):**
+- Dashboard / overview — landing page with count-up stats, decision breakdown bar, action alerts, cost summary; redirect from `/` to `/dashboard`
+- Oversized items — AI flags items too large for 27-gal box; `◱` badge; box assignment blocked; migration 011
+- Destination enforcement — SELL/DONATE/DISPOSE blocked from boxes; KEEP-ITALY → only KEEP-ITALY boxes; GIVE-FAMILY → suitcases only
+- Box manifests — printable per-box packing list at `/manifest/[id]`
+- Inventory PDF export — full inventory with photos at `/export/inventory`, grouped by decision
+- Italian customs distinta — D.P.R. 43/1973 declaration at `/distinta`, KEEP-ITALY items only, bilingual
+- Box labels — customs-compliant labels at `/labels` with KG weight, handling marks, D.P.R. 43/1973 + UCC references, bilingual contents
+- Motion & animations — feature-flagged: staggered list reveals, spring-back taps, phase transitions, weight bar grow, toast bounce, thinking pulse, haptic feedback (`lib/haptic.ts`); toggle in Settings
+- Unboxed item labelling — `◻ Unboxed` filter pill; location picker on loose items; loose items shown in Bins location view
+- Shipping restrictions / hazmat — AI flags prohibited/restricted items; 🚫/⚠️ badges in Log and result card; migration 008
+- Storage requirements — boxes get climate_controlled/standard/garage_ok label; shown in BoxCard and BoxDetailOverlay; migration 008
+- Item model identification — AI identifies brand+model from photo; shown in result card and detail overlay; migration 009
 
-**Requested, not yet built:**
-- PDF export with photos (spec needed — user requested)
-- Italian government import / customs declaration forms (spec needed — user requested)
-- Dashboard / statistics overview (total weight, costs, decision breakdown)
-- Box manifests — printable per-box packing list
-- Motion / animations — constitution principle 6: count-up, staggered reveals, spring-back, haptic
+**Outstanding (not yet built):**
+- Discuss tab — page exists as stub; Constitution P4 says structural. Needs: NEEDS-HUMAN items list, per-user positions, resolution workflow, comment thread
+- Bulk re-derive — Settings button currently directs to Log; needs actual bulk re-compute of costs using current rates
+- Data deletion flow — Constitution P3 requires full data deletion capability
+- Voltage incompatibility flagging — flag US 110V/60Hz items that will be unusable in Italy (220V/50Hz) without transformer
+- Multi-item photo evaluation — identify and evaluate multiple items from a single photo (currently 1 photo = 1 item)
+- Moving company / insurance manifest formats — Constitution P12 requires format-matched outputs for actual carrier and insurer
+- 11 specs for shipped features — retroactive specs required by Constitution P10
 
 ## Design system
 
 - **Typography:** Cormorant Garamond (serif, primary), Lato (sans, secondary)
-- **Colors:** terracotta, olive, ink, ink-soft, paper, paper-dark
-- **Motion:** count-up animations, staggered card reveals, spring-back on tap, haptic feedback
+- **Colors:** terracotta (`#c0622f`), olive (`#7a8c5e`), gold (`#c9a84c`), ink (`#2c2c2c`), ink-soft (`#6b6b6b`), paper (`#faf7f2`), paper-dark (`#f0ebe1`)
+- **Motion:** count-up animations (`lib/useCountUp.ts`), staggered list reveals (CSS `:nth-child`), spring-back on `:active` (cubic-bezier overshoot), haptic vibration (`lib/haptic.ts`). All gated behind `.motion-enabled` body class.
 - **Spirit:** "a couple's careful, almost romantic preparation for a new life"
 - **Anti-pattern:** "Default Bootstrap card with rounded corners and a subtle gradient" is a Constitution violation.
 
 ## Database
 
 Supabase (PostgreSQL). Key tables:
-- `cernita_entries` — evaluated items with bilingual names, rationales, decisions, photos
-- `cernita_boxes` — physical containers (plastic boxes, suitcases); `box_type: 'plastic' | 'suitcase'`
+- `cernita_entries` — evaluated items with bilingual names, rationales, decisions, photos, fragility, shipping restrictions, oversized flag
+- `cernita_boxes` — physical containers; `box_type: 'plastic' | 'suitcase'`; storage_requirement; destination matching a Decision
 - `cernita_locations` — where boxes/items physically are
-- `cernita_trips` — planned/executed travel events
-- `cernita_calls` — AI phone call records
+- `cernita_trips` — planned/executed travel events with suitcase manifests
+
+Pending migrations (not yet applied to all environments):
+- `docs/migration-010-plastic-boxes.sql` — renames box_type 'cardboard' → 'plastic'
+- `docs/migration-011-oversized.sql` — adds oversized boolean to entries
+
+## Key files
+
+- **AI prompt + schema:** `pages/api/anthropic.ts`
+- **Global state:** `lib/context.tsx` (AppProvider, useReducer, Realtime)
+- **Types:** `lib/types.ts` (Entry, Box, Trip, Location, CernitaSettings, Decision)
+- **All CSS:** `styles/globals.css` (~3,500 lines, single file)
+- **Constitution:** `.specify/memory/constitution.md`
+- **Requirements doc:** `REQUIREMENTS.md` (full handoff doc for engineers)
 
 ## Testing
 
@@ -94,6 +115,7 @@ Manual testing checklist pattern (from specs):
 - Two phones see same data in real time (Supabase sync)
 - Old cached version degrades gracefully
 - Mobile keyboard behavior is correct
+- Print pages (distinta, inventory, manifest, labels) open without login redirect
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,

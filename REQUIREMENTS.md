@@ -243,10 +243,8 @@ The "Re-derive outdated entries" button in Settings currently just displays a to
 
 ---
 
-### 3. Box label printing *(Constitution P11: bilingual permanent records)*
-Physical boxes need printed labels showing the box number, destination, contents summary, and storage requirement — in both English and Italian. There is no label generation page. The manifest page exists (per-box packing list) but is not the same as a compact physical label.
-
-**Scope:** A `/labels` page or a label view inside the Bins overlay that generates one print-optimized label per box, sized for standard Avery 5163 or similar. Bilingual. Barcode optional.
+### ~~3. Box label printing~~ ✅ DONE
+Customs-compliant labels at `/labels`. Weight in KG, bilingual contents, D.P.R. 43/1973 + UCC references, handling marks (FRAGILE, ALTO, TENERE ALL'ASCIUTTO). Italian destination address field added to Settings. Label button in BoxDetailOverlay.
 
 ---
 
@@ -285,6 +283,16 @@ The constitution requires outputs for insurance manifests and moving company inv
 
 ### 7. NEEDS-HUMAN → Discuss routing
 Items flagged `NEEDS-HUMAN` by the AI appear in the Log with the correct badge but nothing routes them to the Discuss tab or prompts a conversation. This is related to item 1 above but specifically about the entry point: after an item is evaluated as NEEDS-HUMAN, the saved-state flow should offer a "Go to Discuss" action rather than asking about boxes.
+
+---
+
+### 8. Voltage incompatibility flagging *(user-requested)*
+US appliances use 110V/60Hz; Italy uses 220V/50Hz. Items with US power plugs (hair dryers, small appliances, lamps, power tools) should be flagged by the AI during evaluation. They can still be shipped — but the user needs to know they'll need a voltage transformer or that selling/replacing in Italy may be more practical. Suggested: add `voltage_incompatible: boolean` to the AI schema and show a `⚡ 110V` badge in the result card and Log. The rationale should weigh transformer cost vs. replacement cost.
+
+---
+
+### 9. Multi-item photo evaluation *(user-requested)*
+Currently one photo produces one evaluated item. The user wants to photograph a shelf or drawer and have the AI identify and evaluate multiple items at once. Requires: AI returns an **array** of items instead of a single object; save flow creates multiple `cernita_entries` rows; result card shows a list with per-item accept/override; box assignment prompts per item (or applies same box to all). Significant UX change to the evaluate flow.
 
 ---
 
