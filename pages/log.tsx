@@ -5,8 +5,10 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Entry, Box, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel, CernitaSettings } from '../lib/types'
+import { Entry, Box, Location, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, CernitaSettings } from '../lib/types'
 import { exportCSV } from '../lib/exportCsv'
+import { recomputeCosts, isOutdated } from '../lib/costs'
+import haptic from '../lib/haptic'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -34,33 +36,33 @@ function fmtNet(n: number | null | undefined): string {
 }
 
 // Re-compute costs from current rules (local math — no AI call)
-function recomputeCosts(entry: Entry, settings: CernitaSettings) {
-  const weight = entry.weight_lb ?? 0
-  const volume = entry.volume_cuft ?? 0
-  const resale = entry.estimated_resale_value ?? 0
-  const ship_cost = weight * settings.shippingRatePerLb + volume * settings.shippingRatePerCuFt
-  const storage_cost_total = volume * settings.storageRatePerCuFt * settings.monthsInStorage
-  return {
-    ship_cost: ship_cost || null,
-    storage_cost_total: storage_cost_total || null,
-    net_cost_ship: ship_cost ? ship_cost - resale : null,
-    net_cost_storage: storage_cost_total ? storage_cost_total - resale : null,
-  }
-}
-
-function isOutdated(entry: Entry, settings: CernitaSettings): boolean {
-  return !!entry.rules_version && entry.rules_version !== settings.rulesVersion
-}
-
 const ALL_DECISIONS: Decision[] = [
   'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'NEEDS-HUMAN',
 ]
+
+// Decisions that mean the item will never be packed into a shipping box
+const NON_PACKABLE: Decision[] = ['SELL', 'DONATE', 'DISPOSE']
+
+// Returns only open boxes whose destination is compatible with the item's decision
+function getCompatibleBoxes(boxes: Box[], decision: Decision): Box[] {
+  const open = boxes.filter(b => !b.closed_at)
+  if (decision === 'GIVE-FAMILY') return open.filter(b => b.box_type === 'suitcase')
+  if (decision === 'NEEDS-HUMAN') return open
+  return open.filter(b => b.destination === decision)
+}
+
+function getCompatibleClosedBoxes(boxes: Box[], decision: Decision): Box[] {
+  const closed = boxes.filter(b => b.closed_at)
+  if (decision === 'GIVE-FAMILY') return closed.filter(b => b.box_type === 'suitcase')
+  if (decision === 'NEEDS-HUMAN') return closed
+  return closed.filter(b => b.destination === decision)
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LogPage() {
   const { state, dispatch } = useApp()
-  const { log: entries, boxes, settings, user } = state
+  const { log: entries, boxes, locations, settings, user } = state
 
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
@@ -92,6 +94,7 @@ export default function LogPage() {
   const filtered = (() => {
     let result = activeFilters.size === 0 ? entries : entries.filter(e => {
       if (activeFilters.has('OUTDATED') && isOutdated(e, settings)) return true
+      if (activeFilters.has('UNBOXED') && e.box_id == null) return true
       if (activeFilters.has(e.final_decision)) return true
       return false
     })
@@ -113,6 +116,7 @@ export default function LogPage() {
   }, {} as Record<Decision, number>)
 
   const outdatedCount = entries.filter(e => isOutdated(e, settings)).length
+  const unboxedCount  = entries.filter(e => e.box_id == null).length
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -125,16 +129,26 @@ export default function LogPage() {
           <span className="serif" style={{ fontSize: '20px' }}>Log</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {entries.length > 0 && (
-              <button
-                className="btn-link"
-                style={{ fontSize: 12, textDecoration: 'none', color: 'var(--ink-soft)' }}
-                onClick={() => {
-                  exportCSV(entries)
-                  showToast(`${entries.length} items exported · File esportato`)
-                }}
-              >
-                ↓ CSV
-              </button>
+              <>
+                <button
+                  className="btn-link"
+                  style={{ fontSize: 12, textDecoration: 'none', color: 'var(--ink-soft)' }}
+                  onClick={() => {
+                    exportCSV(entries)
+                    showToast(`${entries.length} items exported · File esportato`)
+                  }}
+                >
+                  ↓ CSV
+                </button>
+                <a
+                  href="/export/inventory"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: 'var(--ink-soft)', textDecoration: 'none' }}
+                >
+                  ↓ PDF
+                </a>
+              </>
             )}
             <SyncIndicator />
           </div>
@@ -210,6 +224,15 @@ export default function LogPage() {
                   <span className="filter-pill-count">{outdatedCount}</span>
                 </button>
               )}
+              {unboxedCount > 0 && (
+                <button
+                  className={`filter-pill filter-pill-unboxed ${activeFilters.has('UNBOXED') ? 'active' : ''}`}
+                  onClick={() => toggleFilter('UNBOXED')}
+                >
+                  ◻ Unboxed
+                  <span className="filter-pill-count">{unboxedCount}</span>
+                </button>
+              )}
             </div>
           )}
 
@@ -241,6 +264,7 @@ export default function LogPage() {
             entry={selectedEntry}
             settings={settings}
             boxes={boxes}
+            locations={locations}
             currentUser={user?.user_metadata?.display_name ?? user?.email?.split('@')[0] ?? 'you'}
             onClose={() => setSelectedEntry(null)}
             onSaved={(updated) => {
@@ -322,6 +346,10 @@ function EntryRow({ entry, outdated, onClick }: {
           <div className="entry-badges">
             {outdated && <span className="badge-outdated">⟳</span>}
             {entry.override_reason && <span className="badge-override">↩</span>}
+            {entry.oversized && <span className="badge-oversized">◱</span>}
+            {entry.voltage_incompatible && <span className="badge-voltage">⚡</span>}
+            {entry.shipping_restriction === 'prohibited' && <span className="badge-hazmat">🚫</span>}
+            {entry.shipping_restriction === 'restricted' && <span className="badge-hazmat-warn">⚠️</span>}
             <span className={DECISION_BADGE_CLASS[entry.final_decision as Decision] ?? 'badge'}>
               {entry.final_decision.replace('KEEP-', '').replace('-', ' ')}
             </span>
@@ -340,10 +368,11 @@ function EntryRow({ entry, outdated, onClick }: {
 
 // ─── DetailOverlay ────────────────────────────────────────────────────────────
 
-function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, onDeleted }: {
+function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose, onSaved, onDeleted }: {
   entry: Entry
   settings: CernitaSettings
   boxes: Box[]
+  locations: Location[]
   currentUser: string
   onClose: () => void
   onSaved: (e: Entry) => void
@@ -362,6 +391,10 @@ function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, 
   // Box assignment state
   const [selectedBoxId, setSelectedBoxId] = useState<number | null | ''>(entry.box_id ?? null)
   const [savingBox, setSavingBox] = useState(false)
+
+  // Location state (for loose items not in a box)
+  const [selectedLocationId, setSelectedLocationId] = useState<number | null | ''>(entry.current_location_id ?? null)
+  const [savingLocation, setSavingLocation] = useState(false)
 
   // ── Save override ──────────────────────────────────────────────────────────
   async function handleOverrideSave() {
@@ -443,6 +476,22 @@ function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, 
     onSaved(data as Entry)
   }
 
+  // ── Location assignment ───────────────────────────────────────────────────
+  async function handleLocationSave() {
+    setSavingLocation(true)
+    setError('')
+    const newLocId = selectedLocationId === '' ? null : (selectedLocationId as number | null)
+    const { data, error: err } = await supabase
+      .from('cernita_entries')
+      .update({ current_location_id: newLocId })
+      .eq('id', entry.id)
+      .select()
+      .single()
+    setSavingLocation(false)
+    if (err || !data) { setError('Save failed — try again.'); return }
+    onSaved(data as Entry)
+  }
+
   // ── Delete ─────────────────────────────────────────────────────────────────
   async function handleDelete() {
     setSaving(true)
@@ -453,6 +502,7 @@ function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, 
 
     setSaving(false)
     if (err) { setError('Delete failed — try again.'); return }
+    haptic.destroy()
     onDeleted(entry.id)
   }
 
@@ -500,6 +550,9 @@ function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, 
               <em className="detail-name-it"> · {entry.item_name_it}</em>
             )}
           </h2>
+          {entry.item_model && (
+            <p className="item-model-label" style={{ marginBottom: 4 }}>{entry.item_model}</p>
+          )}
 
           <p className="detail-attribution">
             Evaluated by {entry.user_name} · {timeAgo(entry.created_at)}
@@ -581,55 +634,177 @@ function DetailOverlay({ entry, settings, boxes, currentUser, onClose, onSaved, 
             </div>
           )}
 
-          {/* Box assignment */}
-          {boxes.length > 0 && (
+          {/* Shipping restriction */}
+          {entry.shipping_restriction && entry.shipping_restriction !== 'none' && (
+            <div className={`hazmat-banner hazmat-${entry.shipping_restriction}`} style={{ marginBottom: 16 }}>
+              <span className="hazmat-icon">
+                {entry.shipping_restriction === 'prohibited' ? '🚫' : '⚠️'}
+              </span>
+              <div className="hazmat-body">
+                <p className="hazmat-title">
+                  {entry.shipping_restriction === 'prohibited'
+                    ? 'Cannot ship internationally · Non spedibile'
+                    : 'Shipping restricted · Restrizioni di spedizione'}
+                </p>
+                {entry.shipping_restriction_note && (
+                  <p className="hazmat-note">{entry.shipping_restriction_note}</p>
+                )}
+                {entry.shipping_restriction_note_it && (
+                  <p className="hazmat-note italic" style={{ color: 'var(--ink-soft)', marginTop: 4 }}>
+                    {entry.shipping_restriction_note_it}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Voltage incompatibility */}
+          {entry.voltage_incompatible && (
+            <div className="voltage-banner" style={{ marginBottom: 16 }}>
+              <span className="voltage-icon">⚡</span>
+              <div className="voltage-body">
+                <p className="voltage-title">110V — incompatible with Italy · Non compatibile</p>
+                <p className="voltage-note">
+                  Italy uses 220V/50Hz. Needs a step-down transformer or replacement.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Box assignment — enforces destination compatibility */}
+          {entry.oversized ? (
+            <div className="oversized-note">
+              <p className="oversized-note-text">
+                ◱ Oversized — ships separately · <em>Oggetto di grandi dimensioni, spedizione separata</em>
+              </p>
+            </div>
+          ) : NON_PACKABLE.includes(entry.final_decision as Decision) ? (
             <div className="box-assign-section">
               <p className="box-assign-label">Box · Scatola</p>
-              {entry.box_id ? (
+              <p style={{ fontSize: 13, color: 'var(--ink-soft)', fontStyle: 'italic', margin: 0 }}>
+                {entry.final_decision === 'SELL'
+                  ? 'Being sold — not packed into a box · Da vendere'
+                  : entry.final_decision === 'DONATE'
+                  ? 'Being donated — not packed · Da donare'
+                  : 'Being disposed — not packed · Da smaltire'}
+              </p>
+            </div>
+          ) : boxes.length > 0 && (() => {
+            const compatibleOpen   = getCompatibleBoxes(boxes, entry.final_decision as Decision)
+            const compatibleClosed = getCompatibleClosedBoxes(boxes, entry.final_decision as Decision)
+            const openPlastic   = compatibleOpen.filter(b => b.box_type !== 'suitcase')
+            const openSuitcases = compatibleOpen.filter(b => b.box_type === 'suitcase')
+            return (
+              <div className="box-assign-section">
+                <p className="box-assign-label">Box · Scatola</p>
+                {entry.box_id ? (
+                  <p className="box-assign-current">
+                    Currently in <strong className="box-number" style={{ fontSize: 13 }}>
+                      {boxes.find(b => b.id === entry.box_id)?.box_number ?? `#${entry.box_id}`}
+                    </strong>
+                  </p>
+                ) : (
+                  <p className="box-assign-current">Not packed · Non ancora inscatolato</p>
+                )}
+                {compatibleOpen.length === 0 && compatibleClosed.length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--ink-soft)', fontStyle: 'italic' }}>
+                    No compatible boxes open · Nessuna scatola compatibile — add one in Bins
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <select
+                      className="input"
+                      style={{ flex: 1, fontSize: 13, padding: '8px 10px' }}
+                      value={selectedBoxId === null ? '' : selectedBoxId}
+                      onChange={e => setSelectedBoxId(e.target.value === '' ? null : Number(e.target.value))}
+                    >
+                      <option value="">— No box —</option>
+                      {openPlastic.map(b => {
+                        const lbl = getDecisionLabel(b.destination, settings.usDestination)
+                        return (
+                          <option key={b.id} value={b.id}>
+                            {b.box_number} · {lbl.en.split('—').pop()?.trim()}
+                          </option>
+                        )
+                      })}
+                      {openSuitcases.length > 0 && (
+                        <optgroup label="🧳 Suitcases">
+                          {openSuitcases.map(b => {
+                            const classLbl = b.suitcase_class
+                              ? SUITCASE_CLASS_LABELS[b.suitcase_class as keyof typeof SUITCASE_CLASS_LABELS]?.en
+                              : 'Suitcase'
+                            return (
+                              <option key={b.id} value={b.id}>
+                                {b.box_number} · {classLbl}
+                              </option>
+                            )
+                          })}
+                        </optgroup>
+                      )}
+                      {compatibleClosed.length > 0 && (
+                        <optgroup label="Closed boxes">
+                          {compatibleClosed.map(b => {
+                            const lbl = getDecisionLabel(b.destination, settings.usDestination)
+                            return (
+                              <option key={b.id} value={b.id}>
+                                {b.box_number} · {lbl.en.split('—').pop()?.trim()} (closed)
+                              </option>
+                            )
+                          })}
+                        </optgroup>
+                      )}
+                    </select>
+                    <button
+                      className="btn-secondary"
+                      style={{ whiteSpace: 'nowrap', padding: '8px 14px', fontSize: 13 }}
+                      onClick={handleBoxAssign}
+                      disabled={savingBox || selectedBoxId === (entry.box_id ?? null)}
+                    >
+                      {savingBox ? '…' : 'Assign · Assegna'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* Location (for loose items) */}
+          {locations.length > 0 && (
+            <div className="box-assign-section">
+              <p className="box-assign-label">
+                Location · <em className="italic ink-soft" style={{ fontSize: 12 }}>Posizione</em>
+                {entry.box_id == null && (
+                  <span className="filter-pill filter-pill-unboxed" style={{ marginLeft: 8, padding: '1px 7px', fontSize: 10, verticalAlign: 'middle' }}>
+                    ◻ Unboxed
+                  </span>
+                )}
+              </p>
+              {entry.current_location_id ? (
                 <p className="box-assign-current">
-                  Currently in <strong className="box-number" style={{ fontSize: 13 }}>
-                    {boxes.find(b => b.id === entry.box_id)?.box_number ?? `#${entry.box_id}`}
-                  </strong>
+                  Currently at <strong>{locations.find(l => l.id === entry.current_location_id)?.name ?? `#${entry.current_location_id}`}</strong>
                 </p>
               ) : (
-                <p className="box-assign-current">Not packed · Non ancora inscatolato</p>
+                <p className="box-assign-current ink-soft" style={{ fontStyle: 'italic' }}>No location set · Posizione non impostata</p>
               )}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <select
                   className="input"
                   style={{ flex: 1, fontSize: 13, padding: '8px 10px' }}
-                  value={selectedBoxId === null ? '' : selectedBoxId}
-                  onChange={e => setSelectedBoxId(e.target.value === '' ? null : Number(e.target.value))}
+                  value={selectedLocationId === null ? '' : selectedLocationId}
+                  onChange={e => setSelectedLocationId(e.target.value === '' ? null : Number(e.target.value))}
                 >
-                  <option value="">— No box —</option>
-                  {boxes.filter(b => !b.closed_at).map(b => {
-                    const lbl = getDecisionLabel(b.destination, settings.usDestination)
-                    return (
-                      <option key={b.id} value={b.id}>
-                        {b.box_number} · {lbl.en.split('—').pop()?.trim()}
-                      </option>
-                    )
-                  })}
-                  {boxes.some(b => b.closed_at) && (
-                    <optgroup label="Closed boxes">
-                      {boxes.filter(b => b.closed_at).map(b => {
-                        const lbl = getDecisionLabel(b.destination, settings.usDestination)
-                        return (
-                          <option key={b.id} value={b.id}>
-                            {b.box_number} · {lbl.en.split('—').pop()?.trim()} (closed)
-                          </option>
-                        )
-                      })}
-                    </optgroup>
-                  )}
+                  <option value="">— Unlocated —</option>
+                  {locations.map(l => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
                 </select>
                 <button
                   className="btn-secondary"
                   style={{ whiteSpace: 'nowrap', padding: '8px 14px', fontSize: 13 }}
-                  onClick={handleBoxAssign}
-                  disabled={savingBox || selectedBoxId === (entry.box_id ?? null)}
+                  onClick={handleLocationSave}
+                  disabled={savingLocation || selectedLocationId === (entry.current_location_id ?? null)}
                 >
-                  {savingBox ? '…' : 'Assign · Assegna'}
+                  {savingLocation ? '…' : 'Set · Imposta'}
                 </button>
               </div>
             </div>

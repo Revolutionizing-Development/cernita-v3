@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react'
 import { Session, User } from '@supabase/supabase-js'
 import { supabase } from './supabase'
-import { Entry, Box, Location, CernitaSettings, DEFAULT_SETTINGS } from './types'
+import { Entry, Box, Location, Trip, CernitaSettings, DEFAULT_SETTINGS } from './types'
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -10,9 +10,11 @@ export type SyncStatus = 'online' | 'syncing' | 'offline'
 export interface AppState {
   session: Session | null
   user: User | null
+  authLoading: boolean   // true until first onAuthStateChange fires — never redirect while true
   log: Entry[]
   boxes: Box[]
   locations: Location[]
+  trips: Trip[]
   syncStatus: SyncStatus
   settings: CernitaSettings
 }
@@ -20,9 +22,11 @@ export interface AppState {
 const initialState: AppState = {
   session: null,
   user: null,
+  authLoading: true,
   log: [],
   boxes: [],
   locations: [],
+  trips: [],
   syncStatus: 'offline',
   settings: DEFAULT_SETTINGS,
 }
@@ -30,7 +34,7 @@ const initialState: AppState = {
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
 type Action =
-  | { type: 'SET_SESSION'; session: Session | null; user: User | null }
+  | { type: 'SET_SESSION'; session: Session | null; user: User | null; authLoading: boolean }
   | { type: 'SET_LOG'; entries: Entry[] }
   | { type: 'UPSERT_ENTRY'; entry: Entry }
   | { type: 'DELETE_ENTRY'; id: number }
@@ -40,13 +44,16 @@ type Action =
   | { type: 'SET_LOCATIONS'; locations: Location[] }
   | { type: 'UPSERT_LOCATION'; location: Location }
   | { type: 'DELETE_LOCATION'; id: number }
+  | { type: 'SET_TRIPS'; trips: Trip[] }
+  | { type: 'UPSERT_TRIP'; trip: Trip }
+  | { type: 'DELETE_TRIP'; id: number }
   | { type: 'SET_SYNC'; status: SyncStatus }
   | { type: 'SET_SETTINGS'; settings: CernitaSettings }
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'SET_SESSION':
-      return { ...state, session: action.session, user: action.user }
+      return { ...state, session: action.session, user: action.user, authLoading: action.authLoading }
     case 'SET_LOG':
       return { ...state, log: action.entries }
     case 'UPSERT_ENTRY': {
@@ -86,6 +93,19 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case 'DELETE_LOCATION':
       return { ...state, locations: state.locations.filter(l => l.id !== action.id) }
+    case 'SET_TRIPS':
+      return { ...state, trips: action.trips }
+    case 'UPSERT_TRIP': {
+      const exists = state.trips.some(t => t.id === action.trip.id)
+      return {
+        ...state,
+        trips: exists
+          ? state.trips.map(t => t.id === action.trip.id ? action.trip : t)
+          : [...state.trips, action.trip],
+      }
+    }
+    case 'DELETE_TRIP':
+      return { ...state, trips: state.trips.filter(t => t.id !== action.id) }
     case 'SET_SYNC':
       return { ...state, syncStatus: action.status }
     case 'SET_SETTINGS':
@@ -129,16 +149,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Auth state listener
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        dispatch({ type: 'SET_SESSION', session, user: session?.user ?? null })
-        if (session) {
-          await loadAll(dispatch)
-          setupRealtime(dispatch)
-        }
+    let didFire = false
+
+    // Safety timeout: if onAuthStateChange never fires (Supabase unreachable,
+    // project paused, network down), stop blocking the UI after 5 seconds.
+    const timeout = setTimeout(() => {
+      if (!didFire) {
+        console.warn('Supabase auth did not respond within 5s — unblocking UI')
+        dispatch({ type: 'SET_SESSION', session: null, user: null, authLoading: false })
       }
-    )
-    return () => subscription.unsubscribe()
+    }, 5000)
+
+    let subscription: { unsubscribe: () => void } | null = null
+
+    try {
+      const result = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          didFire = true
+          clearTimeout(timeout)
+          // authLoading: false on the very first fire — we now know whether there's a session
+          dispatch({ type: 'SET_SESSION', session, user: session?.user ?? null, authLoading: false })
+          if (session) {
+            await loadAll(dispatch)
+            setupRealtime(dispatch)
+          }
+        }
+      )
+      subscription = result.data.subscription
+    } catch (err) {
+      console.error('Failed to set up Supabase auth listener:', err)
+      clearTimeout(timeout)
+      dispatch({ type: 'SET_SESSION', session: null, user: null, authLoading: false })
+    }
+
+    return () => {
+      clearTimeout(timeout)
+      subscription?.unsubscribe()
+    }
   }, [])
 
   // Persist settings changes
@@ -160,19 +207,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
 async function loadAll(dispatch: React.Dispatch<Action>) {
   dispatch({ type: 'SET_SYNC', status: 'syncing' })
 
-  const [entriesRes, boxesRes, locationsRes] = await Promise.all([
-    supabase.from('cernita_entries').select('*').order('created_at', { ascending: false }),
-    supabase.from('cernita_boxes').select('*').order('created_at'),
-    supabase.from('cernita_locations').select('*').order('sort_order'),
-  ])
+  try {
+    const [entriesRes, boxesRes, locationsRes, tripsRes] = await Promise.all([
+      supabase.from('cernita_entries').select('*').order('created_at', { ascending: false }),
+      supabase.from('cernita_boxes').select('*').order('created_at'),
+      supabase.from('cernita_locations').select('*').order('sort_order'),
+      supabase.from('cernita_trips').select('*').order('departure_date', { ascending: true }),
+    ])
 
-  if (!entriesRes.error && entriesRes.data)
-    dispatch({ type: 'SET_LOG', entries: entriesRes.data as Entry[] })
-  if (!boxesRes.error && boxesRes.data)
-    dispatch({ type: 'SET_BOXES', boxes: boxesRes.data as Box[] })
-  if (!locationsRes.error && locationsRes.data)
-    dispatch({ type: 'SET_LOCATIONS', locations: locationsRes.data as Location[] })
+    if (!entriesRes.error && entriesRes.data)
+      dispatch({ type: 'SET_LOG', entries: entriesRes.data as Entry[] })
+    if (!boxesRes.error && boxesRes.data)
+      dispatch({ type: 'SET_BOXES', boxes: boxesRes.data as Box[] })
+    if (!locationsRes.error && locationsRes.data)
+      dispatch({ type: 'SET_LOCATIONS', locations: locationsRes.data as Location[] })
+    if (!tripsRes.error && tripsRes.data)
+      dispatch({ type: 'SET_TRIPS', trips: tripsRes.data as Trip[] })
+  } catch (err) {
+    console.error('Failed to load data from Supabase:', err)
+  }
 
+  // Always mark as online so the UI never gets stuck in a loading state
   dispatch({ type: 'SET_SYNC', status: 'online' })
 }
 
@@ -202,6 +257,13 @@ function setupRealtime(dispatch: React.Dispatch<Action>) {
         dispatch({ type: 'UPSERT_LOCATION', location: payload.new as Location })
       } else if (payload.eventType === 'DELETE') {
         dispatch({ type: 'DELETE_LOCATION', id: (payload.old as { id: number }).id })
+      }
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'cernita_trips' }, (payload) => {
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        dispatch({ type: 'UPSERT_TRIP', trip: payload.new as Trip })
+      } else if (payload.eventType === 'DELETE') {
+        dispatch({ type: 'DELETE_TRIP', id: (payload.old as { id: number }).id })
       }
     })
     .subscribe((status) => {

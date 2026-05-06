@@ -5,7 +5,8 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Box, Location, Entry, Decision, DECISION_BADGE_CLASS, getDecisionLabel } from '../lib/types'
+import haptic from '../lib/haptic'
+import { Box, Location, Entry, Decision, CernitaSettings, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, STORAGE_REQUIREMENT_LABELS, getDecisionLabel } from '../lib/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ const VALID_DESTINATIONS: Decision[] = [
 
 export default function BinsPage() {
   const { state, dispatch } = useApp()
-  const { boxes, locations, log, settings } = state
+  const { boxes, locations, log, settings, syncStatus } = state
 
   const [view, setView] = useState<'location' | 'destination'>('location')
   const [selectedBox, setSelectedBox] = useState<Box | null>(null)
@@ -72,7 +73,8 @@ export default function BinsPage() {
     }
   }
 
-  const migrationNeeded = locations.length === 0 && boxes.length === 0
+  // Only show migration banner after data has loaded — not during initial sync
+  const migrationNeeded = syncStatus === 'online' && locations.length === 0 && boxes.length === 0
 
   return (
     <AuthGuard>
@@ -104,6 +106,13 @@ export default function BinsPage() {
 
         <div className="page-content">
 
+          {/* Loading state */}
+          {syncStatus === 'syncing' && boxes.length === 0 && (
+            <p className="settings-hint" style={{ padding: '20px 0', textAlign: 'center' }}>
+              Loading… · Caricamento…
+            </p>
+          )}
+
           {/* Migration needed banner */}
           {migrationNeeded && (
             <div className="migration-banner">
@@ -111,8 +120,15 @@ export default function BinsPage() {
               <p className="migration-body">
                 Open <strong>Supabase → SQL Editor</strong> and run the contents of{' '}
                 <code>docs/migration-006-boxes-locations.sql</code> from the repo.
-                Then reload the app.
+                Then reload.
               </p>
+              <button
+                className="btn-secondary"
+                style={{ marginTop: 12, width: '100%' }}
+                onClick={() => window.location.reload()}
+              >
+                Reload · Ricarica
+              </button>
             </div>
           )}
 
@@ -122,6 +138,7 @@ export default function BinsPage() {
               boxes={boxes}
               locations={locations}
               log={log}
+              settings={settings}
               usDestination={settings.usDestination}
               onSelectBox={setSelectedBox}
               onNewBox={() => setShowNewBox(true)}
@@ -171,10 +188,11 @@ export default function BinsPage() {
 
 // ─── LocationView ─────────────────────────────────────────────────────────────
 
-function LocationView({ boxes, locations, log, usDestination, onSelectBox, onNewBox }: {
+function LocationView({ boxes, locations, log, settings, usDestination, onSelectBox, onNewBox }: {
   boxes: Box[]
   locations: Location[]
   log: Entry[]
+  settings: CernitaSettings
   usDestination: string
   onSelectBox: (b: Box) => void
   onNewBox: () => void
@@ -185,6 +203,11 @@ function LocationView({ boxes, locations, log, usDestination, onSelectBox, onNew
     const key = box.current_location_id
     if (!grouped.has(key)) grouped.set(key, [])
     grouped.get(key)!.push(box)
+  }
+
+  // Loose items = items not in any box, grouped by their current_location_id
+  function getLooseItems(locId: number | null): Entry[] {
+    return log.filter(e => e.box_id == null && e.current_location_id === locId)
   }
 
   // Order: known locations by sort_order, then null (unassigned)
@@ -225,6 +248,7 @@ function LocationView({ boxes, locations, log, usDestination, onSelectBox, onNew
           const { total } = getBoxWeight(log, b.id)
           return sum + (total ?? 0)
         }, 0)
+        const looseItems = getLooseItems(locationId)
         return (
           <div key={locationId ?? 'unassigned'} className="location-section">
             <div className="location-section-header">
@@ -235,6 +259,7 @@ function LocationView({ boxes, locations, log, usDestination, onSelectBox, onNew
               <span className="location-section-meta">
                 {boxList.length} box{boxList.length !== 1 ? 'es' : ''}
                 {totalWeight > 0 && ` · ~${totalWeight.toFixed(0)} lb`}
+                {looseItems.length > 0 && ` · ${looseItems.length} loose`}
               </span>
             </div>
             {boxList.map(box => (
@@ -246,9 +271,75 @@ function LocationView({ boxes, locations, log, usDestination, onSelectBox, onNew
                 onClick={() => onSelectBox(box)}
               />
             ))}
+            {looseItems.length > 0 && (
+              <LooseItemsGroup items={looseItems} settings={settings} />
+            )}
           </div>
         )
       })}
+
+      {/* Unlocated loose items — no box, no location */}
+      {(() => {
+        const unlocated = log.filter(e => e.box_id == null && e.current_location_id == null)
+        if (unlocated.length === 0) return null
+        return (
+          <div className="location-section">
+            <div className="location-section-header">
+              <span className="location-section-name">Unlocated · Senza posizione</span>
+              <span className="location-section-meta">{unlocated.length} loose</span>
+            </div>
+            <LooseItemsGroup items={unlocated} settings={settings} />
+          </div>
+        )
+      })()}
+    </div>
+  )
+}
+
+// ─── LooseItemsGroup ──────────────────────────────────────────────────────────
+
+function LooseItemsGroup({ items, settings }: { items: Entry[]; settings: CernitaSettings }) {
+  const knownWeight = items.filter(e => e.weight_lb != null)
+  const knownVol    = items.filter(e => e.volume_cuft != null)
+  const totalWeight = knownWeight.reduce((s, e) => s + (e.weight_lb ?? 0), 0)
+  const totalVol    = knownVol.reduce((s, e) => s + (e.volume_cuft ?? 0), 0)
+  const estShipCost = totalWeight * settings.shippingRatePerLb + totalVol * settings.shippingRatePerCuFt
+  const hasRestriction = items.some(e => e.shipping_restriction && e.shipping_restriction !== 'none')
+
+  return (
+    <div className="loose-items-group">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+        <p className="loose-items-label">◻ Loose items · Non inscatolati</p>
+        {hasRestriction && <span style={{ fontSize: 11, color: 'var(--terracotta)' }}>⚠ restrictions</span>}
+      </div>
+      {items.map(e => (
+        <div key={e.id} className="loose-item-row">
+          {e.shipping_restriction === 'prohibited' && <span style={{ fontSize: 12, marginRight: 4 }}>🚫</span>}
+          {e.shipping_restriction === 'restricted'  && <span style={{ fontSize: 12, marginRight: 4 }}>⚠️</span>}
+          <span className="loose-item-name">{e.item_name}</span>
+          {e.item_name_it && <span className="loose-item-name-it"> · {e.item_name_it}</span>}
+          <span className="loose-item-meta">
+            {e.weight_lb != null && `${e.weight_lb} lb`}
+            {e.weight_lb != null && e.volume_cuft != null && ' · '}
+            {e.volume_cuft != null && `${e.volume_cuft} cu ft`}
+          </span>
+        </div>
+      ))}
+      {(knownWeight.length > 0 || knownVol.length > 0) && (
+        <div className="loose-items-totals">
+          {knownWeight.length > 0 && (
+            <span>~{totalWeight.toFixed(1)} lb total</span>
+          )}
+          {knownVol.length > 0 && (
+            <span>{totalVol.toFixed(2)} cu ft total</span>
+          )}
+          {estShipCost > 0 && (
+            <span className="loose-items-ship-cost">
+              ~${estShipCost.toFixed(0)} est. ship
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -324,16 +415,25 @@ function BoxCard({ box, log, usDestination, onClick }: {
 }) {
   const items = getBoxItems(log, box.id)
   const { total: weight, unknownCount } = getBoxWeight(log, box.id)
+  const isSuitcase = box.box_type === 'suitcase'
+  const weightLimit = isSuitcase ? (box.weight_limit_lb ?? 50) : 70
   const label = getDecisionLabel(box.destination, usDestination)
   const badgeClass = DECISION_BADGE_CLASS[box.destination] ?? 'badge'
-  const pct = weight != null ? Math.min(100, (weight / 70) * 100) : 0
+  const pct = weight != null ? Math.min(100, (weight / weightLimit) * 100) : 0
   const color = weightColor(weight)
 
   return (
     <button className="box-card" onClick={onClick}>
       <div className="box-card-top">
+        {isSuitcase && <span aria-label="Suitcase" style={{ fontSize: 16, lineHeight: 1, marginRight: 2 }}>🧳</span>}
         <span className="box-number">{box.box_number}</span>
-        <span className={`${badgeClass} box-dest-badge`}>{label.en.split('—').pop()?.trim()}</span>
+        {isSuitcase && box.suitcase_class ? (
+          <span className="suitcase-class-badge" style={{ marginLeft: 4 }}>
+            {SUITCASE_CLASS_LABELS[box.suitcase_class as keyof typeof SUITCASE_CLASS_LABELS]?.en ?? box.suitcase_class}
+          </span>
+        ) : (
+          <span className={`${badgeClass} box-dest-badge`}>{label.en.split('—').pop()?.trim()}</span>
+        )}
         {box.closed_at && <span className="box-closed-badge">Closed</span>}
       </div>
 
@@ -345,6 +445,13 @@ function BoxCard({ box, log, usDestination, onClick }: {
         {weight == null && unknownCount > 0 && (
           <> · <span style={{ color: 'var(--ink-soft)' }}>? lb</span></>
         )}
+        {isSuitcase && <> · <span className="ink-soft">{weightLimit} lb limit</span></>}
+        {box.storage_requirement === 'climate_controlled' && (
+          <> · <span style={{ color: 'var(--olive)', fontWeight: 600 }}>❄ climate</span></>
+        )}
+        {box.storage_requirement === 'garage_ok' && (
+          <> · <span style={{ color: 'var(--ink-soft)' }}>🏠 garage ok</span></>
+        )}
       </div>
 
       {/* Weight bar */}
@@ -353,8 +460,8 @@ function BoxCard({ box, log, usDestination, onClick }: {
           className="weight-bar-fill"
           style={{ width: `${pct}%`, background: color }}
         />
-        {pct >= 71 && (
-          <span className="weight-bar-limit" title="Over 70 lb limit">⚠</span>
+        {pct > 100 && (
+          <span className="weight-bar-limit" title={`Over ${weightLimit} lb limit`}>⚠</span>
         )}
       </div>
     </button>
@@ -379,6 +486,9 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
 
   const [locationId, setLocationId] = useState<number | null>(box.current_location_id)
   const [notes, setNotes] = useState(box.notes ?? '')
+  const [storageReq, setStorageReq] = useState<'climate_controlled' | 'standard' | 'garage_ok'>(
+    (box.storage_requirement as 'climate_controlled' | 'standard' | 'garage_ok') ?? 'standard'
+  )
   const [saving, setSaving] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [error, setError] = useState('')
@@ -388,7 +498,7 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
     setError('')
     const { data, error: err } = await supabase
       .from('cernita_boxes')
-      .update({ current_location_id: locationId, notes: notes || null })
+      .update({ current_location_id: locationId, notes: notes || null, storage_requirement: storageReq })
       .eq('id', box.id)
       .select()
       .single()
@@ -399,14 +509,18 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
 
   async function handleToggleClose() {
     setSaving(true)
+    const sealing = !box.closed_at
     const { data, error: err } = await supabase
       .from('cernita_boxes')
-      .update({ closed_at: box.closed_at ? null : new Date().toISOString() })
+      .update({ closed_at: sealing ? new Date().toISOString() : null })
       .eq('id', box.id)
       .select()
       .single()
     setSaving(false)
-    if (!err && data) onSaved(data as Box)
+    if (!err && data) {
+      if (sealing) haptic.celebrate()
+      onSaved(data as Box)
+    }
   }
 
   async function handleDelete() {
@@ -471,6 +585,22 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
             ))}
           </select>
 
+          {/* Storage requirement */}
+          <label className="input-label" style={{ marginTop: 4 }}>Storage requirement · Requisiti di stoccaggio</label>
+          <select
+            className="input"
+            value={storageReq}
+            onChange={e => setStorageReq(e.target.value as typeof storageReq)}
+            style={{ marginBottom: 6 }}
+          >
+            {(Object.entries(STORAGE_REQUIREMENT_LABELS) as [keyof typeof STORAGE_REQUIREMENT_LABELS, typeof STORAGE_REQUIREMENT_LABELS[keyof typeof STORAGE_REQUIREMENT_LABELS]][]).map(([key, lbl]) => (
+              <option key={key} value={key}>{lbl.en} · {lbl.it}</option>
+            ))}
+          </select>
+          <p className="settings-hint" style={{ marginBottom: 14 }}>
+            {STORAGE_REQUIREMENT_LABELS[storageReq]?.hint}
+          </p>
+
           {/* Notes */}
           <label className="input-label">Notes · Note</label>
           <textarea
@@ -486,6 +616,28 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
           <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ marginBottom: 10 }}>
             {saving ? 'Saving…' : 'Save · Salva'}
           </button>
+
+          {/* Print manifest + label */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <a
+              href={`/manifest/${box.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary"
+              style={{ flex: 1, textAlign: 'center', textDecoration: 'none', fontSize: 13 }}
+            >
+              ◫ Manifest
+            </a>
+            <a
+              href={`/labels?id=${box.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary"
+              style={{ flex: 1, textAlign: 'center', textDecoration: 'none', fontSize: 13 }}
+            >
+              🏷 Label · Etichetta
+            </a>
+          </div>
 
           {/* Items in box */}
           {items.length > 0 && (
@@ -554,6 +706,7 @@ function NewBoxOverlay({ boxes, locations, usDestination, onClose, onCreated }: 
   const [locationId, setLocationId] = useState<number | null>(
     locations.find(l => l.name === 'Galesburg house')?.id ?? locations[0]?.id ?? null
   )
+  const [storageReq, setStorageReq] = useState<'climate_controlled' | 'standard' | 'garage_ok'>('standard')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -568,6 +721,7 @@ function NewBoxOverlay({ boxes, locations, usDestination, onClose, onCreated }: 
         box_number: boxNumber,
         destination,
         current_location_id: locationId,
+        storage_requirement: storageReq,
       })
       .select()
       .single()
@@ -600,6 +754,19 @@ function NewBoxOverlay({ boxes, locations, usDestination, onClose, onCreated }: 
             return <option key={d} value={d}>{lbl.en} · {lbl.it}</option>
           })}
         </select>
+
+        <label className="input-label">Storage requirement · Requisiti di stoccaggio</label>
+        <select
+          className="input"
+          value={storageReq}
+          onChange={e => setStorageReq(e.target.value as typeof storageReq)}
+          style={{ marginBottom: 4 }}
+        >
+          {(Object.entries(STORAGE_REQUIREMENT_LABELS) as [keyof typeof STORAGE_REQUIREMENT_LABELS, typeof STORAGE_REQUIREMENT_LABELS[keyof typeof STORAGE_REQUIREMENT_LABELS]][]).map(([key, lbl]) => (
+            <option key={key} value={key}>{lbl.en} · {lbl.it}</option>
+          ))}
+        </select>
+        <p className="settings-hint" style={{ marginBottom: 14 }}>{STORAGE_REQUIREMENT_LABELS[storageReq]?.hint}</p>
 
         <label className="input-label">Starting location · Posizione iniziale</label>
         <select
