@@ -3227,3 +3227,361 @@ body {
 .motion-enabled .overlay-backdrop {
   animation: cernita-fade-in 200ms ease-out both;
 }
+
+/* ─── Box labels page ────────────────────────────────────────────────────── */
+
+.lbl-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  font-family: var(--font-sans);
+}
+
+.lbl-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 16px;
+  border-bottom: 1px solid var(--paper-dark);
+  margin-bottom: 24px;
+}
+
+.lbl-warning {
+  background: #fff8e6;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 13px;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.lbl-empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+/* ── Individual label card ── */
+
+.lbl-card {
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  margin-bottom: 32px;
+  overflow: hidden;
+  background: white;
+  page-break-after: always;
+  page-break-inside: avoid;
+}
+
+/* ── Top band: box number + handling marks ── */
+
+.lbl-top {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 2px solid var(--ink);
+  min-height: 100px;
+}
+
+.lbl-id-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 16px 20px;
+  border-right: 1px solid var(--paper-dark);
+  gap: 4px;
+}
+
+.lbl-box-num {
+  font-size: 52px;
+  font-weight: 700;
+  color: var(--terracotta);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.lbl-box-of {
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.lbl-destination {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--olive);
+  margin-top: 2px;
+}
+
+.lbl-marks-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 140px;
+}
+
+.lbl-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--paper-dark);
+  border-left: 1px solid var(--paper-dark);
+}
+
+.lbl-mark:last-child {
+  border-bottom: none;
+}
+
+.lbl-mark-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+
+.lbl-mark-text {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.lbl-mark-fragile .lbl-mark-text { color: var(--terracotta); }
+.lbl-mark-dry .lbl-mark-text     { color: #3a7abf; }
+.lbl-mark-heat .lbl-mark-text    { color: #b36b00; }
+.lbl-mark-warn .lbl-mark-text    { color: #b36b00; }
+
+/* ── Parties: shipper + consignee ── */
+
+.lbl-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 2px solid var(--ink);
+}
+
+.lbl-party {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 16px;
+}
+
+.lbl-party:first-child {
+  border-right: 1px solid var(--paper-dark);
+}
+
+.lbl-party-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+
+.lbl-party-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.lbl-party-addr {
+  font-size: 12px;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.lbl-addr-missing {
+  color: var(--terracotta);
+  font-style: italic;
+}
+
+/* ── Contents list ── */
+
+.lbl-contents {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--paper-dark);
+}
+
+.lbl-section-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+
+.lbl-item-count {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.lbl-contents-empty {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.lbl-contents-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lbl-contents-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.lbl-contents-num {
+  color: var(--ink-soft);
+  min-width: 20px;
+  flex-shrink: 0;
+}
+
+.lbl-contents-name {
+  flex: 1;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.lbl-contents-name-en {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.lbl-contents-model {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink-soft);
+}
+
+.lbl-contents-cond {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--olive);
+  border: 1px solid var(--olive);
+  border-radius: 2px;
+  padding: 1px 4px;
+  flex-shrink: 0;
+}
+
+/* ── Metrics row ── */
+
+.lbl-metrics {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--paper-dark);
+  border-top: 1px solid var(--paper-dark);
+}
+
+.lbl-metric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 16px;
+}
+
+.lbl-metric:first-child {
+  border-right: 1px solid var(--paper-dark);
+}
+
+.lbl-metric-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+.lbl-metric-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.lbl-metric-note {
+  font-size: 10px;
+  color: var(--terracotta);
+  font-style: italic;
+}
+
+/* ── Customs footer ── */
+
+.lbl-customs {
+  background: var(--paper-dark);
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lbl-customs-row {
+  font-size: 10px;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.lbl-customs-field em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* ── Print: full-page labels, one per page ── */
+
+@media print {
+  .lbl-page {
+    padding: 0;
+    max-width: 100%;
+  }
+
+  .lbl-card {
+    border: 1.5pt solid black;
+    margin: 0;
+    border-radius: 0;
+    page-break-after: always;
+    min-height: 90vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .lbl-contents {
+    flex: 1;
+  }
+
+  .lbl-box-num {
+    font-size: 64pt;
+  }
+
+  .lbl-marks-block {
+    min-width: 160px;
+  }
+
+  .lbl-mark-text {
+    font-size: 8pt;
+  }
+
+  .lbl-party-label { font-size: 7pt; }
+  .lbl-party-name  { font-size: 12pt; }
+  .lbl-party-addr  { font-size: 10pt; }
+
+  .lbl-contents-row { font-size: 10pt; }
+  .lbl-section-label { font-size: 7pt; }
+  .lbl-metric-value { font-size: 16pt; }
+  .lbl-customs-row  { font-size: 8pt; }
+}

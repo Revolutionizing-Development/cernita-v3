@@ -617,16 +617,27 @@ function BoxDetailOverlay({ box, locations, log, usDestination, onClose, onSaved
             {saving ? 'Saving…' : 'Save · Salva'}
           </button>
 
-          {/* Print manifest */}
-          <a
-            href={`/manifest/${box.id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-secondary"
-            style={{ display: 'block', textAlign: 'center', marginBottom: 10, textDecoration: 'none', fontSize: 14 }}
-          >
-            ◫ Print manifest · Stampa lista
-          </a>
+          {/* Print manifest + label */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <a
+              href={`/manifest/${box.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary"
+              style={{ flex: 1, textAlign: 'center', textDecoration: 'none', fontSize: 13 }}
+            >
+              ◫ Manifest
+            </a>
+            <a
+              href={`/labels?id=${box.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary"
+              style={{ flex: 1, textAlign: 'center', textDecoration: 'none', fontSize: 13 }}
+            >
+              🏷 Label · Etichetta
+            </a>
+          </div>
 
           {/* Items in box */}
           {items.length > 0 && (

@@ -167,6 +167,8 @@ export interface CernitaSettings {
   aiModel: string
   // EUR/USD exchange rate — used for Italian customs distinta
   eurRate: number
+  // Italian destination address — printed on customs-compliant box labels
+  italyAddress: string   // free-text: street, postcode, city, province, ITALIA
   // Animations (feature flag — set false to revert all motion)
   motionEnabled: boolean
   // Rule versioning (bumped when rates change)
@@ -186,6 +188,7 @@ export const DEFAULT_SETTINGS: CernitaSettings = {
   personalItemLimitLb: 16,
   aiModel: 'claude-sonnet-4-5',
   eurRate: 0.92,
+  italyAddress: '',
   motionEnabled: true,
   rulesVersion: '1.0.0',
 }

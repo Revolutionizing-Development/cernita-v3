@@ -184,6 +184,29 @@ export default function SettingsPage() {
             </p>
           </div>
 
+          {/* ── Italian destination ── */}
+          <h2 className="section-header">
+            Italian destination · <em className="italic ink-soft">Destinazione italiana</em>
+          </h2>
+          <p className="settings-hint" style={{ marginBottom: 12 }}>
+            Printed on customs-compliant box labels as the consignee address.
+            Italian customs requires the full address (street, CAP, city, province).
+          </p>
+          <div className="card" style={{ marginBottom: 24 }}>
+            <label className="input-label">Full Italian address · Indirizzo completo</label>
+            <textarea
+              className="input"
+              rows={4}
+              style={{ resize: 'vertical', fontFamily: 'var(--font-sans)' }}
+              value={settings.italyAddress}
+              onChange={e => updateSetting('italyAddress', e.target.value)}
+              placeholder={`Via Example 42\n05059 Todi (PG)\nUmbria`}
+            />
+            <p className="settings-hint" style={{ marginTop: 6 }}>
+              Example: Via Roma 42 · 05059 Todi (PG) · Umbria
+            </p>
+          </div>
+
           {/* ── Motion ── */}
           <h2 className="section-header">
             Animations · <em className="italic ink-soft">Animazioni</em>
@@ -314,6 +337,20 @@ export default function SettingsPage() {
                 {state.log.filter(e => e.final_decision === 'KEEP-ITALY').length > 0 && (
                   <span className="ink-soft" style={{ fontSize: 11, marginLeft: 8 }}>
                     ({state.log.filter(e => e.final_decision === 'KEEP-ITALY').length} KEEP-ITALY items)
+                  </span>
+                )}
+              </a>
+              <a
+                href="/labels"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary"
+                style={{ textAlign: 'center', textDecoration: 'none', display: 'block' }}
+              >
+                🏷 Etichette scatole · <em className="italic">Box labels (customs-compliant)</em>
+                {state.boxes.filter(b => b.destination === 'KEEP-ITALY').length > 0 && (
+                  <span className="ink-soft" style={{ fontSize: 11, marginLeft: 8 }}>
+                    ({state.boxes.filter(b => b.destination === 'KEEP-ITALY').length} Italy-bound boxes)
                   </span>
                 )}
               </a>
