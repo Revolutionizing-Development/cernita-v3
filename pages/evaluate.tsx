@@ -10,6 +10,7 @@ import haptic from '../lib/haptic'
 import { Box, Decision, ActionPhase, DecisionRule, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, ACTION_PHASE_LABELS, OVERRIDE_TAGS, OverrideTagId } from '../lib/types'
 import { computePerspectives, shouldAutoNeedsHuman, perspectiveConfidence, DualPerspective } from '../lib/perspectives'
 import { findMatchingRule, ruleDisagreesWithAi, formatRuleSummary } from '../lib/rules'
+import { InfoButton, HelpHint } from '../components/HelpHint'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1006,7 +1007,10 @@ function ResultCard({
         {/* Dual perspectives */}
         {dual.hasData && (
           <div className="perspectives-section">
-            <p className="perspectives-label">Perspectives · Prospettive</p>
+            <p className="perspectives-label">
+              Perspectives · Prospettive
+              <InfoButton section="Two perspectives" />
+            </p>
             <div className="perspectives-grid">
               <div className={`perspective-card perspective-${dual.ship.decision.toLowerCase()}`}>
                 <p className="perspective-lens">{dual.ship.label.en}</p>
@@ -1253,7 +1257,10 @@ function OverrideOverlay({
 
         {showPhase && (
           <>
-            <label className="input-label" style={{ marginTop: 8 }}>When · Quando</label>
+            <label className="input-label" style={{ marginTop: 8 }}>
+              When · Quando
+              <InfoButton section="The journey" />
+            </label>
             <div className="phase-picker" style={{ marginBottom: 16 }}>
               <button
                 className={`phase-pill${currentPhase === 'NOW' ? ' active' : ''}`}
@@ -1274,7 +1281,16 @@ function OverrideOverlay({
         )}
 
         {/* Override tags */}
-        <label className="input-label">Why? (select all that apply) · Perché? (seleziona tutto)</label>
+        <label className="input-label">
+          Why? (select all that apply) · Perché? (seleziona tutto)
+          <InfoButton section="Overrides & learning" />
+        </label>
+        <HelpHint id="first-override" position="above">
+          <p>Pick a tag for why you&apos;re changing the decision &mdash; this helps Cernita learn your preferences.</p>
+          <p className="italic ink-soft" style={{ fontSize: 12, marginTop: 4 }}>
+            Seleziona un motivo per il cambio &mdash; questo aiuta Cernita a imparare le tue preferenze.
+          </p>
+        </HelpHint>
         <div className="override-tags-picker">
           {OVERRIDE_TAGS.map(tag => (
             <button

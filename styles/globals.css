@@ -3465,6 +3465,361 @@ body {
   }
 }
 
+/* ─── Walkthrough (spec 016 Part 8) ──────────────────────────────────────── */
+
+.wt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: var(--paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.wt-card {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  min-height: 80vh;
+  max-height: 90vh;
+}
+
+.wt-skip {
+  align-self: flex-end;
+  background: none;
+  border: none;
+  color: var(--ink-soft);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  font-family: var(--font-sans);
+}
+
+.wt-skip:hover { text-decoration: underline; }
+
+.wt-illustration {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px 28px;
+  border-bottom: 3px solid var(--terracotta);
+  gap: 16px;
+  min-height: 180px;
+}
+
+.wt-illustration-icon {
+  font-size: 56px;
+  line-height: 1;
+}
+
+/* Journey diagram */
+.wt-diagram {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.wt-diagram-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wt-diagram-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: white;
+  border: 1px solid var(--paper-dark);
+  min-width: 70px;
+}
+
+.wt-diagram-node-icon { font-size: 22px; }
+
+.wt-diagram-node-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: center;
+}
+
+.wt-diagram-arrow {
+  font-size: 18px;
+  color: var(--ink-soft);
+  flex-shrink: 0;
+}
+
+.wt-diagram-exits {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.wt-diagram-exit {
+  font-size: 10px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+/* Content area */
+.wt-content {
+  flex: 1;
+  padding: 24px 16px 16px;
+  overflow-y: auto;
+}
+
+.wt-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 2px;
+  line-height: 1.2;
+}
+
+.wt-title-it {
+  font-size: 15px;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin-bottom: 16px;
+}
+
+.wt-body {
+  font-size: 15px;
+  color: var(--ink);
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.wt-body-it {
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+/* Navigation */
+.wt-nav {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wt-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.wt-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--paper-dark);
+  transition: background 200ms ease, transform 200ms ease;
+}
+
+.wt-dot.active {
+  background: var(--terracotta);
+  transform: scale(1.3);
+}
+
+.wt-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.wt-btn-back {
+  flex: 1;
+}
+
+.wt-btn-next {
+  flex: 2;
+}
+
+/* Motion-enabled walkthrough animations */
+.motion-enabled .wt-card {
+  animation: cernita-fade-up 350ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.motion-enabled .wt-illustration-icon {
+  animation: cernita-scale-in 400ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: 100ms;
+}
+
+/* ─── Help Accordion (spec 016 Part 8) ───────────────────────────────────── */
+
+.help-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.help-accordion-item {
+  border-bottom: 1px solid var(--paper-dark);
+}
+
+.help-accordion-item:last-of-type {
+  border-bottom: none;
+}
+
+.help-accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.help-accordion-header:hover {
+  color: var(--terracotta);
+}
+
+.help-accordion-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+
+.help-accordion-title {
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+}
+
+.help-accordion-title-it {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-style: italic;
+  flex: 0;
+  white-space: nowrap;
+}
+
+.help-accordion-chevron {
+  font-size: 14px;
+  color: var(--ink-soft);
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.help-accordion-body {
+  padding: 4px 0 16px 34px;
+}
+
+.help-accordion-text {
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.6;
+  margin-bottom: 6px;
+}
+
+.help-accordion-text-it {
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.help-replay-btn {
+  margin-top: 14px;
+  width: 100%;
+}
+
+/* ─── Help Hints (spec 016 Part 8) ───────────────────────────────────────── */
+
+.help-hint {
+  background: #fff8e6;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.help-hint-above {
+  margin-bottom: 10px;
+}
+
+.help-hint-below {
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+
+.help-hint-content {
+  flex: 1;
+}
+
+.help-hint-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--gold);
+  border-radius: 10px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  align-self: center;
+}
+
+.help-hint-dismiss:active {
+  background: var(--gold);
+  color: white;
+}
+
+/* ─── Info Button (contextual ℹ) ─────────────────────────────────────────── */
+
+.info-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--paper-dark);
+  background: white;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  font-style: normal;
+  cursor: pointer;
+  vertical-align: middle;
+  margin-left: 6px;
+  padding: 0;
+  line-height: 1;
+  font-family: var(--font-serif);
+}
+
+.info-button:hover {
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+}
+
 /* ─── Italy confirmation flow (spec 016 Part 3) ─────────────────────────── */
 
 .italy-confirm-header {

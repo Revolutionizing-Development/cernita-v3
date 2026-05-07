@@ -10,6 +10,7 @@ import {
   Entry, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel, CernitaSettings,
 } from '../lib/types'
 import { computePerspectives, DualPerspective } from '../lib/perspectives'
+import { HelpHint } from '../components/HelpHint'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -279,6 +280,13 @@ export default function DiscussPage() {
                   decisione condivisa. Esaminate e scegliete una destinazione.
                 </p>
               </div>
+
+              <HelpHint id="first-discuss" position="below">
+                <p>Items land here when the economics could go either way. Review the math and decide together.</p>
+                <p className="italic ink-soft" style={{ fontSize: 12, marginTop: 4 }}>
+                  Gli oggetti finiscono qui quando i calcoli non danno un chiaro risultato. Esaminate i numeri e decidete insieme.
+                </p>
+              </HelpHint>
 
               <div className="discuss-list">
                 {needsHuman.map(entry => (
