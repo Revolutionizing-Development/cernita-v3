@@ -14,21 +14,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const usStop = settings.usDestination || 'Colorado Springs'
 
-  const prompt = `You are helping evaluate household items for an international move from Illinois to Italy, with an intermediate stop in ${usStop}.
+  const movingRate = settings.movingRatePerLb ?? 0.50
 
-Rules in effect:
-- Storage in ${usStop}: $${settings.storageRatePerCuFt}/cu ft/month for ${settings.monthsInStorage} months
-- Ocean shipping (${usStop} → Italy): $${settings.shippingRatePerLb}/lb + $${settings.shippingRatePerCuFt}/cu ft
+  const prompt = `You are helping evaluate household items for an international move from Galesburg, Illinois to Italy, with an intermediate stop in ${usStop}. The move happens in phases:
+
+PHASE 1 (now → ~6 months): Pack and sort in Galesburg, IL.
+PHASE 2 (~6 months → ~2.5 years): Live in ${usStop}. Items are stored in the house (free) or garage.
+PHASE 3 (~2.5 years): Ship container from ${usStop} to Italy by ocean freight.
+
+IMPORTANT: Items do NOT ship directly to Italy. Every kept item first moves by truck to ${usStop}, lives there for ~2 years, then ships to Italy. The total cost to get an item to Italy is the sum of BOTH legs.
+
+Cost rates in effect:
+- Leg 1 — Ground move (Galesburg IL → ${usStop}): $${movingRate}/lb (share of moving truck, ~1,000 miles)
+- Leg 2 — Ocean shipping (${usStop} → Italy): $${settings.shippingRatePerLb}/lb + $${settings.shippingRatePerCuFt}/cu ft
+- House storage in ${usStop}: FREE — items live in the couple's house (no paid storage facility)
 - Carry-on: free (no additional cost)
 
+COST CALCULATIONS — compute these for every item:
+  storage_cost_total = weight_lb × $${movingRate} (this is the Leg 1 ground move cost)
+  ship_cost = weight_lb × $${settings.shippingRatePerLb} + volume_cuft × $${settings.shippingRatePerCuFt} (Leg 2 ocean ship)
+  net_cost_ship = storage_cost_total + ship_cost (TOTAL cost to get item to Italy, both legs)
+  net_cost_storage = replacement_cost − net_cost_ship (positive = shipping saves money vs. buying new in Italy; negative = replacing is cheaper)
+
+COLORADO STORAGE REQUIREMENTS — for items going to ${usStop}, note in packing_notes whether the item needs:
+- Indoor climate-controlled storage (AC in summer, heating in winter): electronics, leather goods, musical instruments, art, wine, books, photographs, wood furniture
+- Garage-ok (tolerates temperature swings, humidity): metal tools, outdoor gear, pots & pans, plastic bins, sporting equipment
+Include this recommendation in packing_notes, e.g. "Store indoors in Colorado (climate-sensitive)" or "Garage-ok in Colorado".
+
 Decision codes:
-- KEEP-ITALY: ship to Italy in the ocean container
-- KEEP-US: stays in ${usStop} (not going to Italy, at least not now)
-- SELL: sell before the move
-- DONATE: donate locally
+- SHIP-ITALY: ship to Italy in the ocean container (ultimate destination = Italy)
+- SELL: sell (specify action_phase: "NOW" for selling in Galesburg, "COLORADO" for selling in ${usStop})
+- DONATE: donate (specify action_phase: "NOW" for donating in Galesburg, "COLORADO" for donating in ${usStop})
+- CONSUME: item will be used up before the Italy move (medicine, toiletries, consumables). Set action_phase: "COLORADO" if the item travels to ${usStop} to be consumed there.
 - DISPOSE: trash, recycling, or special disposal (including prohibited hazmat items)
 - GIVE-FAMILY: give to a family member via trip or suitcase
 - NEEDS-HUMAN: no clear AI recommendation; both partners need to discuss
+
+ACTION PHASE — for SELL, DONATE, and CONSUME decisions, also return an "action_phase" field:
+- "NOW": do it now in the current location (Galesburg, IL)
+- "COLORADO": do it after moving to ${usStop}
+Items that are cheap, heavy, or easily replaceable should lean toward "NOW" (sell/donate before the move to avoid moving cost). Items the couple needs in the interim should be "COLORADO".
 
 SHIPPING RESTRICTION RULES — assess international ocean-freight restrictions carefully:
 - Lithium-ion battery packs (power tools, e-bikes, large UPS batteries) are Class 9 hazmat and PROHIBITED in ocean containers without special certification. Flag as "prohibited".
@@ -51,7 +76,7 @@ Items that are voltage-compatible should be false:
 - Devices with "100–240V~" or "universal" on the power brick/label (most laptops, phone chargers, game consoles)
 - Battery-only items (no plug at all)
 - Non-electrical items (furniture, clothing, books, kitchenware without motors)
-When voltage_incompatible is true, factor the cost of a step-down transformer (~$30–60 for items under 300W, ~$100–200 for high-wattage appliances like hair dryers, power tools) into the rationale. If the transformer cost plus the shipping cost exceeds 50% of the Italian replacement cost, recommend SELL instead of KEEP-ITALY.
+When voltage_incompatible is true, factor the cost of a step-down transformer (~$30–60 for items under 300W, ~$100–200 for high-wattage appliances like hair dryers, power tools) into the rationale. If the transformer cost plus the shipping cost exceeds 50% of the Italian replacement cost, recommend SELL (with action_phase "COLORADO") instead of SHIP-ITALY.
 
 MULTI-ITEM DETECTION — carefully examine the photo. If you see MULTIPLE DISTINCT items that should each be evaluated separately (e.g. a shelf with several appliances, a table with assorted objects, a group of tools), return a JSON object with an "items" array. Each element in the array is a full evaluation object. If you see only ONE item (or a set that logically counts as one — e.g. a pair of shoes, a set of dishes, a tool with its case), return a single JSON object (no "items" wrapper).
 
@@ -70,15 +95,16 @@ Each evaluation object (whether single or inside the "items" array) must have th
   "item_model": "Brand + model name/number string, or null",
   "oversized": true or false,
   "voltage_incompatible": true or false,
-  "final_decision": one of KEEP-ITALY|KEEP-US|SELL|DONATE|DISPOSE|GIVE-FAMILY|NEEDS-HUMAN,
+  "final_decision": one of SHIP-ITALY|SELL|DONATE|DISPOSE|GIVE-FAMILY|CONSUME|NEEDS-HUMAN,
+  "action_phase": "NOW" or "COLORADO" or null (required for SELL, DONATE, CONSUME; null for others),
   "estimated_resale_value": number or null,
-  "replacement_cost": number or null,
+  "replacement_cost": number or null (cost to buy equivalent in Italy),
   "weight_lb": number or null,
   "volume_cuft": number or null,
-  "storage_cost_total": number or null,
-  "ship_cost": number or null,
-  "net_cost_ship": number or null,
-  "net_cost_storage": number or null,
+  "storage_cost_total": number or null (Leg 1: ground move IL→CO = weight × $${movingRate}/lb),
+  "ship_cost": number or null (Leg 2: ocean ship CO→Italy = weight × $${settings.shippingRatePerLb}/lb + volume × $${settings.shippingRatePerCuFt}/cuft),
+  "net_cost_ship": number or null (TOTAL to Italy = storage_cost_total + ship_cost),
+  "net_cost_storage": number or null (savings = replacement_cost − net_cost_ship; positive means shipping saves money),
   "recommendation_rationale": "English rationale paragraph",
   "recommendation_rationale_it": "Italian rationale paragraph",
   "confidence": "high"|"medium"|"low",

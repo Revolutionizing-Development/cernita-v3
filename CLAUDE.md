@@ -2,11 +2,11 @@
 
 ## Project identity
 
-Cernita is a moving inventory and decision support tool for an international move (Illinois → Texas → Italy). It serves two users (a couple) on mobile phones, helping them decide what to keep, sell, donate, ship, or carry — with honest economic math, bilingual output (English + Italian), and preservation-aware packing guidance.
+Cernita is a moving inventory and decision support tool for an international move (Illinois → Colorado → Italy). It serves two users (a couple) on mobile phones, helping them decide what to keep, sell, donate, ship, or carry — with honest economic math, bilingual output (English + Italian), and preservation-aware packing guidance.
 
 ## Constitution
 
-Read `.specify/memory/constitution.md` before any implementation work. It contains 13 non-negotiable principles. Key ones:
+Read `.specify/memory/constitution.md` before any implementation work. It contains 14 non-negotiable principles. Key ones:
 
 - **Principle 1:** The user owns the decision. Never override silently.
 - **Principle 2:** Honest math, always shown. No hidden assumptions.
@@ -18,6 +18,7 @@ Read `.specify/memory/constitution.md` before any implementation work. It contai
 - **Principle 11:** Bilingual output (English + Italian) for all permanent records.
 - **Principle 12:** Compliance with destination requirements (Italian customs, insurance, carrier formats).
 - **Principle 13:** Preservation is part of the math.
+- **Principle 14:** Security is verified before every release. Spec 017 requirements are a pre-release gate, not a one-time audit.
 
 ## Architecture
 
@@ -75,6 +76,7 @@ Read `.specify/memory/constitution.md` before any implementation work. It contai
 
 - Italian customs declaration (spec 015) — declarant profile in Settings, customs review at `/customs` with category grouping (9 Italian customs categories), completeness checks, EUR conversion, printable dichiarazione sostitutiva + elenco beni. Auto-category assignment via keyword matching. Covers EU Reg. 1186/2009 Art. 3 (third-country provision for US citizens). Migration 015.
 - Data deletion flow — Settings → "Delete all my data" with two-step confirmation. Deletes entries, boxes, trips, locations from Supabase, clears localStorage, signs out. Constitution P3 compliance.
+- Security, safety & code quality (spec 017) — Threat model, 28 security requirements (SEC-AUTH/DATA/API/AI/HDR/DEP), OWASP Top 10 mapping, AI-assisted development governance, security headers in next.config.mjs, risk acceptance register. Constitution P14 compliance.
 
 **Outstanding (not yet built):**
 - Discuss tab: comment thread — per-user positions and back-and-forth comments between both users (current resolve workflow is functional but one-sided)

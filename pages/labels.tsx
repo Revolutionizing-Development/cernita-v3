@@ -224,14 +224,14 @@ export default function LabelsPage() {
     user?.email?.split('@')[0] ??
     '—'
 
-  // Which boxes to show — only KEEP-ITALY by default; single-box if ?id= given
+  // Which boxes to show — only SHIP-ITALY by default; single-box if ?id= given
   const printBoxes = preselectedId
     ? boxes.filter(b => b.id === preselectedId)
     : boxes
-        .filter(b => b.destination === 'KEEP-ITALY')
+        .filter(b => b.destination === 'SHIP-ITALY')
         .sort((a, b) => a.box_number.localeCompare(b.box_number))
 
-  const italyCount = boxes.filter(b => b.destination === 'KEEP-ITALY').length
+  const italyCount = boxes.filter(b => b.destination === 'SHIP-ITALY').length
 
   const missingAddress = !settings.italyAddress.trim()
 
@@ -280,7 +280,7 @@ export default function LabelsPage() {
             <p>
               {preselectedId
                 ? 'Box not found.'
-                : `No KEEP-ITALY boxes yet (${italyCount} total Italy-bound). Evaluate items and assign them to boxes.`}
+                : `No SHIP-ITALY boxes yet (${italyCount} total Italy-bound). Evaluate items and assign them to boxes.`}
             </p>
           </div>
         ) : (

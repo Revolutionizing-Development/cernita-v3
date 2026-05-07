@@ -37,6 +37,12 @@ export interface Entry {
   shipping_restriction: 'none' | 'restricted' | 'prohibited' | null
   shipping_restriction_note: string | null
   shipping_restriction_note_it: string | null
+  // Phase (spec 016) — when does the action happen?
+  action_phase: ActionPhase | null
+  // Override tags (spec 016) — structured reasons for overrides
+  override_tags: string[] | null
+  // Italy confirmation gate (spec 016) — active-use items must be re-confirmed
+  italy_confirmed: boolean
   // Customs fields (spec 015)
   acquisition_year: number | null
   customs_eligible: boolean | null
@@ -46,48 +52,105 @@ export interface Entry {
 }
 
 export type Decision =
-  | 'KEEP-ITALY'
-  | 'KEEP-US'       // intermediate US stop — city configured in Settings
+  | 'SHIP-ITALY'
   | 'SELL'
   | 'DONATE'
   | 'DISPOSE'
   | 'GIVE-FAMILY'
+  | 'CONSUME'
   | 'NEEDS-HUMAN'
 
-// Static fallback labels — KEEP-US display label is overridden dynamically
-// by getDecisionLabel() which uses the configured usDestination.
-export const DECISION_LABELS: Record<Decision, { en: string; it: string }> = {
-  'KEEP-ITALY':  { en: 'Keep — ship to Italy',    it: 'Porta in Italia' },
-  'KEEP-US':     { en: 'Keep — US stop',           it: 'Porta negli USA' },
-  'SELL':        { en: 'Sell',                     it: 'Vendi' },
-  'DONATE':      { en: 'Donate',                   it: 'Dona' },
-  'DISPOSE':     { en: 'Dispose',                  it: 'Smaltisci' },
-  'GIVE-FAMILY': { en: 'Give to family',           it: 'Dai alla famiglia' },
-  'NEEDS-HUMAN': { en: 'Needs discussion',         it: 'Richiede discussione' },
+// Action phase — when does the decision happen?
+export type ActionPhase = 'NOW' | 'COLORADO'
+
+export const ACTION_PHASE_LABELS: Record<ActionPhase, { en: string; it: string }> = {
+  'NOW':      { en: 'Now',       it: 'Ora' },
+  'COLORADO': { en: 'Colorado',  it: 'Colorado' },
 }
 
-// Returns a decision label, substituting the configured US city for KEEP-US.
+export const DECISION_LABELS: Record<Decision, { en: string; it: string }> = {
+  'SHIP-ITALY':  { en: 'Ship to Italy',     it: 'Spedire in Italia' },
+  'SELL':        { en: 'Sell',               it: 'Vendi' },
+  'DONATE':      { en: 'Donate',             it: 'Dona' },
+  'DISPOSE':     { en: 'Dispose',            it: 'Smaltisci' },
+  'GIVE-FAMILY': { en: 'Give to family',     it: 'Dai alla famiglia' },
+  'CONSUME':     { en: 'Use up',             it: 'Consuma' },
+  'NEEDS-HUMAN': { en: 'Needs discussion',   it: 'Richiede discussione' },
+}
+
+// Returns a decision label, optionally combined with action phase.
+// Handles legacy decision values (KEEP-ITALY, KEEP-US) gracefully for entries
+// that haven't been migrated yet in the database.
 export function getDecisionLabel(
   decision: Decision,
-  usDestination = 'Colorado Springs'
+  _usDestination = 'Colorado',
+  phase?: ActionPhase | null
 ): { en: string; it: string } {
-  if (decision === 'KEEP-US') {
-    return {
-      en: `Keep — move to ${usDestination}`,
-      it: `Porta a ${usDestination}`,
-    }
+  const base = DECISION_LABELS[decision]
+    ?? LEGACY_DECISION_LABELS[decision as string]
+    ?? { en: decision, it: decision }
+  if (!phase) return base
+
+  // Combine decision + phase for SELL, DONATE, CONSUME
+  if (phase === 'NOW') {
+    if (decision === 'SELL') return { en: 'Sell now', it: 'Vendi ora' }
+    if (decision === 'DONATE') return { en: 'Donate now', it: 'Dona ora' }
   }
-  return DECISION_LABELS[decision]
+  if (phase === 'COLORADO') {
+    if (decision === 'SELL') return { en: 'Sell in Colorado', it: 'Vendi in Colorado' }
+    if (decision === 'DONATE') return { en: 'Donate in Colorado', it: 'Dona in Colorado' }
+    if (decision === 'CONSUME') return { en: 'Use up in Colorado', it: 'Consuma in Colorado' }
+  }
+  return base
+}
+
+// Legacy decision labels — for entries in the DB that haven't been migrated yet.
+// These map old decision values to display-friendly labels until the migration runs.
+const LEGACY_DECISION_LABELS: Record<string, { en: string; it: string }> = {
+  'KEEP-ITALY':  { en: 'Ship to Italy',        it: 'Spedire in Italia' },
+  'KEEP-US':     { en: 'Keep in US',            it: 'Tenere negli USA' },
+  'KEEP-TEXAS':  { en: 'Keep in US',            it: 'Tenere negli USA' },
+}
+
+// Map legacy decision values to their modern equivalents for badge styling
+export const LEGACY_DECISION_BADGE: Record<string, string> = {
+  'KEEP-ITALY': 'badge badge-ship-italy',
+  'KEEP-US':    'badge badge-sell',
+  'KEEP-TEXAS': 'badge badge-sell',
 }
 
 export const DECISION_BADGE_CLASS: Record<Decision, string> = {
-  'KEEP-ITALY':  'badge badge-keep-italy',
-  'KEEP-US':     'badge badge-keep-us',
+  'SHIP-ITALY':  'badge badge-ship-italy',
   'SELL':        'badge badge-sell',
   'DONATE':      'badge badge-donate',
   'DISPOSE':     'badge badge-dispose',
   'GIVE-FAMILY': 'badge badge-give-family',
+  'CONSUME':     'badge badge-consume',
   'NEEDS-HUMAN': 'badge badge-needs-human',
+}
+
+// Override tags (spec 016) — structured reasons for overrides
+export const OVERRIDE_TAGS = [
+  { id: 'voltage',            en: 'Voltage',            it: 'Voltaggio' },
+  { id: 'too-heavy',          en: 'Too heavy',          it: 'Troppo pesante' },
+  { id: 'sentimental',        en: 'Sentimental',        it: 'Sentimentale' },
+  { id: 'cheap-to-replace',   en: 'Cheap to replace',   it: 'Economico da sostituire' },
+  { id: 'expensive-to-ship',  en: 'Expensive to ship',  it: 'Costoso da spedire' },
+  { id: 'fragile',            en: 'Fragile',             it: 'Fragile' },
+  { id: 'daily-use',          en: 'Daily use',           it: 'Uso quotidiano' },
+  { id: 'consumable',         en: 'Consumable',          it: 'Consumabile' },
+  { id: 'other',              en: 'Other',               it: 'Altro' },
+] as const
+
+export type OverrideTagId = typeof OVERRIDE_TAGS[number]['id']
+
+// Colorado box placement (spec 016)
+export type ColoradoPlacement = 'ACTIVE-USE' | 'HOUSE-STORAGE' | 'GARAGE'
+
+export const COLORADO_PLACEMENT_LABELS: Record<ColoradoPlacement, { en: string; it: string; icon: string; climate: string }> = {
+  'ACTIVE-USE':    { en: 'Active use',       it: 'Uso attivo',       icon: '\uD83C\uDFE0', climate: 'Climate-controlled' },
+  'HOUSE-STORAGE': { en: 'House storage',    it: 'Deposito in casa', icon: '\uD83D\uDDC4\uFE0F', climate: 'Climate-controlled' },
+  'GARAGE':        { en: 'Garage',           it: 'Garage',           icon: '\uD83D\uDE97', climate: 'Non-climate-controlled' },
 }
 
 export interface Location {
@@ -115,6 +178,8 @@ export interface Box {
   weight_limit_lb: number | null
   // Storage requirement (migration 008)
   storage_requirement: 'climate_controlled' | 'standard' | 'garage_ok' | null
+  // Colorado placement (spec 016)
+  colorado_placement: ColoradoPlacement | null
 }
 
 export type TripStatus = 'planned' | 'packing' | 'executed' | 'canceled'
@@ -205,13 +270,115 @@ export const DEFAULT_CUSTOMS_PROFILE: CustomsDeclarantProfile = {
   arrivalDateEstimate: '',
 }
 
+// ─── Decision rules (spec 016 Part 4) ────────────────────────────────────
+
+export type RuleField =
+  | 'customs_category'       // CustomsCategory string
+  | 'replacement_cost'       // number
+  | 'ship_cost'              // number (ocean leg only)
+  | 'net_cost_ship'          // number (total to Italy)
+  | 'weight_lb'              // number
+  | 'voltage_incompatible'   // boolean
+  | 'shipping_restriction'   // 'none' | 'restricted' | 'prohibited'
+  | 'fragility'              // 'none' | 'low' | 'medium' | 'high' | 'irreplaceable'
+  | 'oversized'              // boolean
+
+export const RULE_FIELD_LABELS: Record<RuleField, { en: string; it: string }> = {
+  customs_category:     { en: 'Category',              it: 'Categoria' },
+  replacement_cost:     { en: 'Replacement cost',      it: 'Costo di sostituzione' },
+  ship_cost:            { en: 'Ocean ship cost',       it: 'Costo spedizione' },
+  net_cost_ship:        { en: 'Total cost to Italy',   it: 'Costo totale per Italia' },
+  weight_lb:            { en: 'Weight (lb)',            it: 'Peso (lb)' },
+  voltage_incompatible: { en: 'Voltage incompatible',  it: 'Voltaggio incompatibile' },
+  shipping_restriction: { en: 'Shipping restriction',  it: 'Restrizione spedizione' },
+  fragility:            { en: 'Fragility',             it: 'Fragilità' },
+  oversized:            { en: 'Oversized',             it: 'Fuori misura' },
+}
+
+export type RuleOperator = 'eq' | 'neq' | 'lt' | 'gt' | 'lte' | 'gte' | 'contains'
+
+export const RULE_OPERATOR_LABELS: Record<RuleOperator, string> = {
+  eq:       '=',
+  neq:      '≠',
+  lt:       '<',
+  gt:       '>',
+  lte:      '≤',
+  gte:      '≥',
+  contains: 'contains',
+}
+
+export interface RuleCondition {
+  field: RuleField
+  operator: RuleOperator
+  value: string | number | boolean
+}
+
+export interface DecisionRule {
+  id: string                              // UUID
+  name: string                            // user-visible label
+  conditions: RuleCondition[]             // ALL must match (AND logic)
+  defaultDecision: Decision               // what to suggest
+  defaultPhase: ActionPhase | null        // for SELL/DONATE/CONSUME
+  priority: number                        // lower = higher priority
+  enabled: boolean
+  createdBy: 'user' | 'suggested'         // user-created vs system-suggested
+  acceptedAt: string | null               // when a suggested rule was accepted
+}
+
+export interface RuleSuggestion {
+  rule: DecisionRule                       // the proposed rule
+  evidence: {
+    matchCount: number                     // how many overrides match this pattern
+    exampleItems: string[]                 // item names for display
+    commonTags: OverrideTagId[]            // which override tags drove this
+  }
+}
+
+// Operators valid for each field type
+export function getOperatorsForField(field: RuleField): RuleOperator[] {
+  switch (field) {
+    case 'replacement_cost':
+    case 'ship_cost':
+    case 'net_cost_ship':
+    case 'weight_lb':
+      return ['eq', 'neq', 'lt', 'gt', 'lte', 'gte']
+    case 'voltage_incompatible':
+    case 'oversized':
+      return ['eq']
+    case 'customs_category':
+    case 'shipping_restriction':
+    case 'fragility':
+      return ['eq', 'neq']
+    default:
+      return ['eq', 'neq']
+  }
+}
+
+// Default value type hint per field
+export function getFieldValueType(field: RuleField): 'number' | 'boolean' | 'select' {
+  switch (field) {
+    case 'replacement_cost':
+    case 'ship_cost':
+    case 'net_cost_ship':
+    case 'weight_lb':
+      return 'number'
+    case 'voltage_incompatible':
+    case 'oversized':
+      return 'boolean'
+    default:
+      return 'select'
+  }
+}
+
 export interface CernitaSettings {
   // Move route
   usDestination: string        // the intermediate US city (e.g. "Colorado Springs")
-  // Storage
+  // Ground move (IL → Colorado) — per-lb share of moving truck
+  movingRatePerLb: number
+  // Storage (legacy — kept for backward compat, not used in new cost model)
   storageRatePerCuFt: number
   monthsInStorage: number
-  // Ocean shipping
+  // Ocean shipping (Colorado → Italy)
   shippingRatePerLb: number
   shippingRatePerCuFt: number
   // Weight thresholds (plastic boxes)
@@ -233,10 +400,22 @@ export interface CernitaSettings {
   rulesVersion: string
   // Customs declarant profile (spec 015)
   customsProfile: CustomsDeclarantProfile
+  // Perspective thresholds (spec 016) — dual-lens evaluation
+  // Ship perspective: ship if replacement > ship_cost * this factor
+  perspectiveShipThreshold: number
+  // Ship perspective: sell if replacement < ship_cost * this factor
+  perspectiveSellThreshold: number
+  // Save perspective: ship if ship_cost < replacement * this factor
+  perspectiveSaveShipThreshold: number
+  // Save perspective: sell if ship_cost > replacement * this factor
+  perspectiveSaveSellThreshold: number
+  // Decision rules (spec 016 Part 4) — structured filters that suggest decisions
+  decisionRules: DecisionRule[]
 }
 
 export const DEFAULT_SETTINGS: CernitaSettings = {
   usDestination: 'Colorado Springs',
+  movingRatePerLb: 0.50,
   storageRatePerCuFt: 2.50,
   monthsInStorage: 18,
   shippingRatePerLb: 0.75,
@@ -252,4 +431,9 @@ export const DEFAULT_SETTINGS: CernitaSettings = {
   motionEnabled: true,
   rulesVersion: '1.0.0',
   customsProfile: DEFAULT_CUSTOMS_PROFILE,
+  perspectiveShipThreshold: 1.5,
+  perspectiveSellThreshold: 0.5,
+  perspectiveSaveShipThreshold: 0.3,
+  perspectiveSaveSellThreshold: 0.7,
+  decisionRules: [],
 }

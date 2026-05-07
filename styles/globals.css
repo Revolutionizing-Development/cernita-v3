@@ -171,13 +171,12 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.badge-keep-italy { background: var(--olive); color: var(--paper); }
-.badge-keep-us,
-.badge-keep-texas { background: var(--olive-soft); color: var(--ink); } /* keep-texas alias for old DB rows */
+.badge-ship-italy { background: var(--olive); color: var(--paper); }
 .badge-sell { background: var(--terracotta); color: white; }
 .badge-donate { background: var(--ink-soft); color: white; }
 .badge-dispose { background: var(--ink); color: white; }
 .badge-give-family { background: var(--terracotta-soft); color: var(--ink); }
+.badge-consume { background: #7a8c9e; color: white; }
 .badge-needs-human { background: var(--gold); color: var(--ink); }
 
 /* Sync indicator */
@@ -505,6 +504,8 @@ body {
 }
 
 .economics-table tr.net-row td { background: var(--paper); }
+.economics-table tr.savings-positive td { color: var(--olive); }
+.economics-table tr.savings-negative td { color: var(--terracotta); }
 
 /* Confidence pill */
 .confidence-row {
@@ -526,6 +527,360 @@ body {
 .confidence-high   { background: var(--olive-soft);      color: var(--ink); }
 .confidence-medium { background: var(--gold);             color: var(--ink); }
 .confidence-low    { background: var(--terracotta-soft);  color: var(--ink); }
+
+/* Dual perspectives */
+.perspectives-section {
+  border-top: 1px solid var(--paper-dark);
+  padding-top: 14px;
+  margin-bottom: 18px;
+}
+
+.perspectives-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.perspectives-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.perspective-card {
+  background: var(--paper-dark);
+  border-radius: var(--radius);
+  padding: 10px;
+  border-left: 3px solid var(--ink-soft);
+}
+
+.perspective-card.perspective-ship-italy {
+  border-left-color: var(--olive);
+}
+.perspective-card.perspective-sell {
+  border-left-color: var(--terracotta);
+}
+.perspective-card.perspective-neutral {
+  border-left-color: var(--gold);
+}
+
+.perspective-lens {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  margin-bottom: 1px;
+}
+
+.perspective-lens-it {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.perspective-verdict {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.perspective-verdict-ship-italy { color: var(--olive); }
+.perspective-verdict-sell       { color: var(--terracotta); }
+.perspective-verdict-neutral    { color: var(--gold); }
+
+.perspective-reason {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.perspective-reason-it {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin-top: 3px;
+}
+
+.perspectives-agreement {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.perspectives-agreement.agree {
+  background: var(--olive-soft);
+  color: var(--ink);
+}
+
+.perspectives-agreement.disagree {
+  background: var(--terracotta-soft);
+  color: var(--ink);
+}
+
+.agreement-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.agreement-text {
+  font-weight: 500;
+}
+
+/* Discuss page perspectives */
+.discuss-perspectives {
+  margin-bottom: 14px;
+}
+
+/* Override tags picker */
+.override-tags-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+  margin-top: 6px;
+}
+
+.override-tag-pill {
+  padding: 6px 12px;
+  border: 1.5px solid var(--paper-dark);
+  border-radius: 16px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.override-tag-pill.active {
+  border-color: var(--terracotta);
+  background: var(--terracotta-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.override-tag-pill:hover:not(.active) {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
+
+/* ─── Rule conflict banner (evaluate result card) ──────────────────────────── */
+
+.rule-conflict-banner {
+  background: #fdf6ec;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 14px;
+}
+.rule-conflict-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.rule-conflict-icon {
+  font-size: 18px;
+}
+.rule-conflict-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink);
+}
+.rule-conflict-body {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.rule-conflict-text {
+  margin-bottom: 2px;
+}
+.rule-conflict-summary {
+  font-size: 12px;
+  font-style: italic;
+  margin-top: 4px;
+}
+.badge-inline {
+  display: inline;
+  padding: 1px 7px;
+  font-size: 11px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.rule-accept-btn {
+  width: 100%;
+  margin-top: 10px;
+  font-size: 13px;
+}
+.rule-source-label {
+  font-size: 11px;
+  font-style: italic;
+  margin-left: 8px;
+}
+
+/* ─── Decision rules in Settings ───────────────────────────────────────────── */
+
+.rule-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--paper-dark);
+}
+.rule-row:last-of-type {
+  border-bottom: none;
+}
+.rule-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--olive);
+  cursor: pointer;
+}
+.rule-info {
+  flex: 1;
+  min-width: 0;
+}
+.rule-info.rule-disabled {
+  opacity: 0.5;
+}
+.rule-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rule-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+.rule-conditions {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+.rule-source {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--olive);
+  background: var(--olive-soft);
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-top: 4px;
+}
+.rule-edit-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius);
+}
+.rule-edit-btn:hover {
+  background: var(--paper-dark);
+  color: var(--ink);
+}
+
+/* Rule suggestions */
+.rule-suggestions {
+  border-top: 1px solid var(--paper-dark);
+  padding-top: 14px;
+  margin-top: 14px;
+}
+.rule-suggestions-label {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.rule-suggestion-card {
+  background: var(--paper-dark);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.rule-suggestion-evidence {
+  margin-bottom: 4px;
+}
+.rule-suggestion-name {
+  margin-bottom: 2px;
+}
+.rule-suggestion-examples {
+  font-size: 12px;
+  font-style: italic;
+  margin-top: 4px;
+}
+
+/* Rule editor */
+.rule-editor {
+  background: var(--paper-dark);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin: 10px 0;
+}
+.rule-editor-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+/* Condition row */
+.condition-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+.condition-field {
+  flex: 2;
+  min-width: 0;
+  font-size: 13px;
+  padding: 6px 8px;
+}
+.condition-op {
+  flex: 0 0 56px;
+  font-size: 13px;
+  padding: 6px 4px;
+  text-align: center;
+}
+.condition-value {
+  flex: 1.5;
+  min-width: 0;
+  font-size: 13px;
+  padding: 6px 8px;
+}
+.condition-remove {
+  flex: 0 0 28px;
+  height: 28px;
+  background: none;
+  border: 1px solid var(--paper-dark);
+  border-radius: var(--radius);
+  font-size: 16px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.condition-remove:hover {
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+  background: #fdf0f0;
+}
 
 /* Rationale */
 .rationale-section {
@@ -598,6 +953,34 @@ body {
   font-size: 22px;
   font-weight: 400;
   margin-bottom: 20px;
+}
+
+/* Phase picker (NOW / COLORADO toggle pills) */
+.phase-picker {
+  display: flex;
+  gap: 8px;
+}
+.phase-pill {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.phase-pill.active {
+  border-color: var(--terracotta);
+  background: var(--terracotta);
+  color: white;
+}
+.phase-pill:hover:not(.active) {
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 /* ── Settings page ─────────────────────────────────────────────────────────── */

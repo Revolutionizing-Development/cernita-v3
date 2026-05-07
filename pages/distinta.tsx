@@ -20,9 +20,9 @@ export default function DistitaPage() {
   const { state } = useApp()
   const { log: entries, settings, user } = state
 
-  // Only KEEP-ITALY items
+  // Only SHIP-ITALY items
   const items = [...entries]
-    .filter(e => e.final_decision === 'KEEP-ITALY')
+    .filter(e => e.final_decision === 'SHIP-ITALY')
     .sort((a, b) => (a.item_name_it ?? a.item_name).localeCompare(b.item_name_it ?? b.item_name, 'it'))
 
   const totalUSD = items.reduce((s, e) => s + (e.replacement_cost ?? e.estimated_resale_value ?? 0), 0)

@@ -5,7 +5,7 @@ import Nav from '../components/Nav'
 import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
-import { Entry, Box, Location, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, CernitaSettings } from '../lib/types'
+import { Entry, Box, Location, Decision, ActionPhase, ACTION_PHASE_LABELS, DECISION_LABELS, DECISION_BADGE_CLASS, LEGACY_DECISION_BADGE, SUITCASE_CLASS_LABELS, getDecisionLabel, CernitaSettings } from '../lib/types'
 import { exportCSV } from '../lib/exportCsv'
 import { recomputeCosts, isOutdated } from '../lib/costs'
 import haptic from '../lib/haptic'
@@ -37,11 +37,11 @@ function fmtNet(n: number | null | undefined): string {
 
 // Re-compute costs from current rules (local math — no AI call)
 const ALL_DECISIONS: Decision[] = [
-  'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'NEEDS-HUMAN',
+  'SHIP-ITALY', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'CONSUME', 'NEEDS-HUMAN',
 ]
 
 // Decisions that mean the item will never be packed into a shipping box
-const NON_PACKABLE: Decision[] = ['SELL', 'DONATE', 'DISPOSE']
+const NON_PACKABLE: Decision[] = ['SELL', 'DONATE', 'DISPOSE', 'CONSUME']
 
 // Returns only open boxes whose destination is compatible with the item's decision
 function getCompatibleBoxes(boxes: Box[], decision: Decision): Box[] {
@@ -65,6 +65,7 @@ export default function LogPage() {
   const { log: entries, boxes, locations, settings, user } = state
 
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
+  const [phaseFilter, setPhaseFilter] = useState<ActionPhase | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null)
   const [toast, setToast] = useState('')
@@ -98,6 +99,9 @@ export default function LogPage() {
       if (activeFilters.has(e.final_decision)) return true
       return false
     })
+    if (phaseFilter) {
+      result = result.filter(e => e.action_phase === phaseFilter)
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase()
       result = result.filter(e =>
@@ -117,6 +121,13 @@ export default function LogPage() {
 
   const outdatedCount = entries.filter(e => isOutdated(e, settings)).length
   const unboxedCount  = entries.filter(e => e.box_id == null).length
+
+  // Phase counts
+  const phaseCounts: Record<ActionPhase, number> = {
+    'NOW': entries.filter(e => e.action_phase === 'NOW').length,
+    'COLORADO': entries.filter(e => e.action_phase === 'COLORADO').length,
+  }
+  const hasPhaseData = phaseCounts.NOW > 0 || phaseCounts.COLORADO > 0
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -178,7 +189,7 @@ export default function LogPage() {
           {entries.length > 0 && (
             <div className="log-summary">
               <span className="log-summary-total">
-                {activeFilters.size > 0
+                {activeFilters.size > 0 || phaseFilter
                   ? `Showing ${filtered.length} of ${entries.length}`
                   : `${entries.length} item${entries.length !== 1 ? 's' : ''}`}
               </span>
@@ -236,13 +247,37 @@ export default function LogPage() {
             </div>
           )}
 
+          {/* Phase filter pills */}
+          {entries.length > 0 && hasPhaseData && (
+            <div className="log-filters" style={{ marginTop: 0 }}>
+              <button
+                className={`filter-pill ${phaseFilter === null ? 'active' : ''}`}
+                onClick={() => setPhaseFilter(null)}
+              >
+                All phases
+              </button>
+              {(Object.keys(ACTION_PHASE_LABELS) as ActionPhase[])
+                .filter(p => phaseCounts[p] > 0)
+                .map(p => (
+                  <button
+                    key={p}
+                    className={`filter-pill ${phaseFilter === p ? 'active' : ''}`}
+                    onClick={() => setPhaseFilter(prev => prev === p ? null : p)}
+                  >
+                    {ACTION_PHASE_LABELS[p].en}
+                    <span className="filter-pill-count">{phaseCounts[p]}</span>
+                  </button>
+                ))}
+            </div>
+          )}
+
           {/* List */}
           {filtered.length === 0 ? (
             <EmptyState
               hasEntries={entries.length > 0}
               hasFilters={activeFilters.size > 0}
               hasSearch={!!searchQuery.trim()}
-              onClear={() => { setActiveFilters(new Set()); setSearchQuery('') }}
+              onClear={() => { setActiveFilters(new Set()); setPhaseFilter(null); setSearchQuery('') }}
             />
           ) : (
             <div className="log-list">
@@ -350,8 +385,9 @@ function EntryRow({ entry, outdated, onClick }: {
             {entry.voltage_incompatible && <span className="badge-voltage">⚡</span>}
             {entry.shipping_restriction === 'prohibited' && <span className="badge-hazmat">🚫</span>}
             {entry.shipping_restriction === 'restricted' && <span className="badge-hazmat-warn">⚠️</span>}
-            <span className={DECISION_BADGE_CLASS[entry.final_decision as Decision] ?? 'badge'}>
-              {entry.final_decision.replace('KEEP-', '').replace('-', ' ')}
+            <span className={DECISION_BADGE_CLASS[entry.final_decision as Decision] ?? LEGACY_DECISION_BADGE[entry.final_decision] ?? 'badge'}>
+              {entry.final_decision === 'SHIP-ITALY' || entry.final_decision === ('KEEP-ITALY' as Decision) ? 'Italy'
+                : DECISION_LABELS[entry.final_decision as Decision]?.en ?? entry.final_decision.replace('-', ' ')}
             </span>
           </div>
         </div>
@@ -507,7 +543,7 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
   }
 
   const label = getDecisionLabel(entry.final_decision as Decision, settings.usDestination)
-  const badgeClass = DECISION_BADGE_CLASS[entry.final_decision as Decision] ?? 'badge'
+  const badgeClass = DECISION_BADGE_CLASS[entry.final_decision as Decision] ?? LEGACY_DECISION_BADGE[entry.final_decision] ?? 'badge'
   const showPreservation = entry.fragility && entry.fragility !== 'none'
   const newCosts = outdated ? recomputeCosts(entry, settings) : null
   const confidence = entry.confidence ?? 'medium'
@@ -564,12 +600,12 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
               <p className="outdated-label">⟳ Rules updated since this evaluation</p>
               <div className="outdated-costs">
                 <div className="outdated-cost-row">
-                  <span>Old net (ship)</span>
-                  <span>{fmtNet(entry.net_cost_ship)} → <strong>{fmtNet(newCosts.net_cost_ship)}</strong></span>
+                  <span>Total to Italy</span>
+                  <span>{fmt(entry.net_cost_ship)} → <strong>{fmt(newCosts.net_cost_ship)}</strong></span>
                 </div>
                 <div className="outdated-cost-row">
-                  <span>Old net (storage)</span>
-                  <span>{fmtNet(entry.net_cost_storage)} → <strong>{fmtNet(newCosts.net_cost_storage)}</strong></span>
+                  <span>Savings vs replace</span>
+                  <span>{fmt(entry.net_cost_storage != null ? Math.abs(entry.net_cost_storage) : null)} → <strong>{fmt(newCosts.net_cost_storage != null ? Math.abs(newCosts.net_cost_storage) : null)}</strong></span>
                 </div>
               </div>
               <div className="outdated-actions">
@@ -686,6 +722,8 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
                   ? 'Being sold — not packed into a box · Da vendere'
                   : entry.final_decision === 'DONATE'
                   ? 'Being donated — not packed · Da donare'
+                  : entry.final_decision === 'CONSUME'
+                  ? 'Being used up — not packed · Da consumare'
                   : 'Being disposed — not packed · Da smaltire'}
               </p>
             </div>
@@ -916,6 +954,15 @@ function DetailEconomicsTable({ entry }: { entry: Entry }) {
 
   if (!hasAny) return null
 
+  const Em = ({ children }: { children: React.ReactNode }) => (
+    <em style={{ fontSize: 10, color: 'var(--ink-soft)' }}>{children}</em>
+  )
+
+  // net_cost_storage is now "savings vs replacement"
+  const savings = entry.net_cost_storage
+  const savingsLabel = savings != null && savings >= 0 ? 'Ship saves' : 'Replace saves'
+  const savingsClass = savings != null && savings >= 0 ? 'savings-positive' : 'savings-negative'
+
   return (
     <div className="economics-section" style={{ marginBottom: 16 }}>
       <p className="economics-label">Economics · Costi</p>
@@ -923,39 +970,39 @@ function DetailEconomicsTable({ entry }: { entry: Entry }) {
         <tbody>
           {entry.estimated_resale_value != null && (
             <tr>
-              <td>Resale value <em style={{ fontSize: 10, color: 'var(--ink-soft)' }}>est.</em></td>
+              <td>Resale value <Em>est.</Em></td>
               <td className="num">{fmt(entry.estimated_resale_value)}</td>
             </tr>
           )}
           {entry.replacement_cost != null && (
             <tr>
-              <td>Replace in Italy <em style={{ fontSize: 10, color: 'var(--ink-soft)' }}>est.</em></td>
+              <td>Replace in Italy <Em>est.</Em></td>
               <td className="num">{fmt(entry.replacement_cost)}</td>
             </tr>
           )}
-          {entry.ship_cost != null && (
-            <tr><td>Ship cost</td><td className="num">{fmt(entry.ship_cost)}</td></tr>
-          )}
           {entry.storage_cost_total != null && (
-            <tr><td>Storage cost</td><td className="num">{fmt(entry.storage_cost_total)}</td></tr>
+            <tr><td>Move to CO <Em>truck</Em></td><td className="num">{fmt(entry.storage_cost_total)}</td></tr>
+          )}
+          {entry.ship_cost != null && (
+            <tr><td>Ocean ship <Em>CO→Italy</Em></td><td className="num">{fmt(entry.ship_cost)}</td></tr>
           )}
           {entry.net_cost_ship != null && (
             <tr className="net-row">
-              <td><strong>Net if shipped</strong></td>
-              <td className="num"><strong>{fmtNet(entry.net_cost_ship)}</strong></td>
+              <td><strong>Total to Italy</strong></td>
+              <td className="num"><strong>{fmt(entry.net_cost_ship)}</strong></td>
             </tr>
           )}
-          {entry.net_cost_storage != null && (
-            <tr className="net-row">
-              <td><strong>Net if stored</strong></td>
-              <td className="num"><strong>{fmtNet(entry.net_cost_storage)}</strong></td>
+          {savings != null && entry.replacement_cost != null && (
+            <tr className={`net-row ${savingsClass}`}>
+              <td><strong>{savingsLabel}</strong></td>
+              <td className="num"><strong>{fmt(Math.abs(savings))}</strong></td>
             </tr>
           )}
           {entry.weight_lb != null && (
-            <tr><td>Weight <em style={{ fontSize: 10, color: 'var(--ink-soft)' }}>est.</em></td><td className="num">{entry.weight_lb} lb</td></tr>
+            <tr><td>Weight <Em>est.</Em></td><td className="num">{entry.weight_lb} lb</td></tr>
           )}
           {entry.volume_cuft != null && (
-            <tr><td>Volume <em style={{ fontSize: 10, color: 'var(--ink-soft)' }}>est.</em></td><td className="num">{entry.volume_cuft} cu ft</td></tr>
+            <tr><td>Volume <Em>est.</Em></td><td className="num">{entry.volume_cuft} cu ft</td></tr>
           )}
         </tbody>
       </table>

@@ -7,7 +7,9 @@ import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import haptic from '../lib/haptic'
-import { Box, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel } from '../lib/types'
+import { Box, Decision, ActionPhase, DecisionRule, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, ACTION_PHASE_LABELS, OVERRIDE_TAGS, OverrideTagId } from '../lib/types'
+import { computePerspectives, shouldAutoNeedsHuman, perspectiveConfidence, DualPerspective } from '../lib/perspectives'
+import { findMatchingRule, ruleDisagreesWithAi, formatRuleSummary } from '../lib/rules'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,16 +49,20 @@ interface AiResult {
   shipping_restriction_note_it: string | null
   oversized: boolean | null
   voltage_incompatible: boolean | null
+  action_phase: ActionPhase | null
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const VALID_DECISIONS: Decision[] = [
-  'KEEP-ITALY', 'KEEP-US', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'NEEDS-HUMAN',
+  'SHIP-ITALY', 'SELL', 'DONATE', 'DISPOSE', 'GIVE-FAMILY', 'CONSUME', 'NEEDS-HUMAN',
 ]
 
+// Decisions that support action_phase
+const PHASED_DECISIONS: Decision[] = ['SELL', 'DONATE', 'CONSUME']
+
 // Items with these decisions are never packed into a shipping box
-const NON_PACKABLE: Decision[] = ['SELL', 'DONATE', 'DISPOSE']
+const NON_PACKABLE: Decision[] = ['SELL', 'DONATE', 'DISPOSE', 'CONSUME']
 
 // Returns open boxes whose destination matches the item's decision
 function getCompatibleBoxes(boxes: Box[], decision: Decision): Box[] {
@@ -120,6 +126,8 @@ export default function EvaluatePage() {
 
   // Override overlay state
   const [overrideDecision, setOverrideDecision] = useState<Decision>('NEEDS-HUMAN')
+  const [overridePhase, setOverridePhase] = useState<ActionPhase | null>(null)
+  const [overrideTags, setOverrideTags] = useState<OverrideTagId[]>([])
   const [overrideReason, setOverrideReason] = useState('')
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
 
@@ -203,7 +211,8 @@ export default function EvaluatePage() {
       try {
         photoBase64 = await captureFrame(videoRef.current)
         setCapturedBase64(photoBase64)
-      } catch {
+      } catch (e) {
+        console.warn('[eval] captureFrame failed:', e)
         // proceed without photo
       }
       stopCamera()
@@ -214,14 +223,28 @@ export default function EvaluatePage() {
       return
     }
 
+    // Get access token BEFORE entering thinking phase — if auth hangs,
+    // the user stays on camera view (not stuck in thinking overlay)
+    let accessToken: string | undefined
+    try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      accessToken = currentSession?.access_token ?? undefined
+    } catch (e) {
+      console.warn('[eval] getSession failed, proceeding without token:', e)
+    }
+
     setPhase('thinking')
     abortRef.current = new AbortController()
 
-    try {
-      // Get the current access token to pass to the API route
-      const { data: { session: currentSession } } = await supabase.auth.getSession()
-      const accessToken = currentSession?.access_token
+    // Auto-timeout: if the fetch hangs beyond 90 seconds, abort and recover.
+    // Vercel hobby has a 10s limit; Pro has 60s. 90s covers both + network overhead.
+    const timeoutId = setTimeout(() => {
+      console.warn('[eval] fetch timeout after 90s — aborting')
+      abortRef.current?.abort()
+    }, 90_000)
 
+    try {
+      console.log('[eval] starting fetch to /api/anthropic')
       const res = await fetch('/api/anthropic', {
         method: 'POST',
         headers: {
@@ -236,19 +259,42 @@ export default function EvaluatePage() {
         signal: abortRef.current.signal,
       })
 
+      clearTimeout(timeoutId)
+      console.log('[eval] fetch completed, status:', res.status)
+
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(`API_${res.status}:${body?.error ?? ''}`)
       }
       const data = await res.json()
       const items: AiResult[] = (data.items ?? [data]).map((item: AiResult) => {
+        // Migration: handle legacy decision values from AI
+        if ((item.final_decision as string) === 'KEEP-ITALY') {
+          item.final_decision = 'SHIP-ITALY'
+        } else if ((item.final_decision as string) === 'KEEP-US') {
+          item.final_decision = 'SELL'
+          item.action_phase = 'COLORADO'
+        }
         // Sanitize: guard against unexpected decision values
         if (!VALID_DECISIONS.includes(item.final_decision)) {
-          console.warn('Unexpected final_decision from AI:', item.final_decision)
+          console.warn('[eval] Unexpected final_decision from AI:', item.final_decision)
           item.final_decision = 'NEEDS-HUMAN'
           item.confidence = 'low'
         }
         if (!item.confidence) item.confidence = 'medium'
+        // Default phase for phased decisions
+        if (PHASED_DECISIONS.includes(item.final_decision) && !item.action_phase) {
+          item.action_phase = 'NOW'
+        }
+        // Dual perspective: auto-NEEDS-HUMAN when perspectives disagree
+        const dual = computePerspectives(item.net_cost_ship, item.replacement_cost, settings)
+        if (shouldAutoNeedsHuman(dual) && item.final_decision !== 'NEEDS-HUMAN' && item.final_decision !== 'DISPOSE') {
+          item.final_decision = 'NEEDS-HUMAN'
+          item.confidence = perspectiveConfidence(item.confidence, dual)
+        } else {
+          // Apply perspective-based confidence adjustment
+          item.confidence = perspectiveConfidence(item.confidence, dual)
+        }
         return item
       })
 
@@ -256,14 +302,23 @@ export default function EvaluatePage() {
         throw new Error('AI returned no items')
       }
 
+      console.log('[eval] parsed', items.length, 'item(s)')
       setAiResults(items)
       setCurrentItemIndex(0)
       setSavedCount(0)
       setOverrideDecision(items[0].final_decision)
+      setOverridePhase(items[0].action_phase ?? null)
       setPhase('result')
     } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') return // user cancelled
-      console.error('Evaluate error:', err)
+      clearTimeout(timeoutId)
+      if (err instanceof Error && err.name === 'AbortError') {
+        // User cancelled OR 90s timeout fired
+        console.log('[eval] aborted (user cancel or timeout)')
+        // If still in thinking phase, recover to camera
+        setPhase(cameraBlocked ? 'text' : 'camera')
+        return
+      }
+      console.error('[eval] error:', err)
 
       let msg = 'AI unavailable — please try again · Riprovare.'
       if (err instanceof Error) {
@@ -271,6 +326,8 @@ export default function EvaluatePage() {
           msg = 'Session expired — please sign out and back in.'
         } else if (err.message.startsWith('API_5')) {
           msg = `Server error — check Vercel logs. (${err.message})`
+        } else if (err.message.includes('fetch')) {
+          msg = 'Network error — check your connection · Controlla la connessione.'
         }
       }
 
@@ -285,6 +342,7 @@ export default function EvaluatePage() {
   }
 
   function handleCancel() {
+    console.log('[eval] handleCancel — returning to camera')
     abortRef.current?.abort()
     setCapturedBase64(null)
     setAiResults([])
@@ -295,9 +353,15 @@ export default function EvaluatePage() {
 
   // ─── Save action ───────────────────────────────────────────────────────────
 
-  async function saveEntry(decision: Decision, reason?: string) {
+  async function saveEntry(decision: Decision, reason?: string, phase?: ActionPhase | null, tags?: OverrideTagId[]) {
     if (!aiResult) return
+    console.log('[eval] saveEntry:', aiResult.item_name, '→', decision)
     setPhase('saving')
+
+    // Determine action_phase: use explicit phase, or AI's suggestion for phased decisions
+    const actionPhase = phase !== undefined ? phase
+      : PHASED_DECISIONS.includes(decision) ? (aiResult.action_phase ?? 'NOW')
+      : null
 
     const userName =
       user?.user_metadata?.display_name ??
@@ -310,8 +374,11 @@ export default function EvaluatePage() {
       item_name_it: aiResult.item_name_it,
       item_model: aiResult.item_model ?? null,
       final_decision: decision,
+      action_phase: actionPhase,
+      italy_confirmed: false,
       user_confirmed: true,
       override_reason: reason ?? null,
+      override_tags: tags && tags.length > 0 ? tags : null,
       estimated_resale_value: aiResult.estimated_resale_value,
       replacement_cost: aiResult.replacement_cost,
       weight_lb: aiResult.weight_lb,
@@ -349,12 +416,13 @@ export default function EvaluatePage() {
       .single()
 
     if (error) {
-      console.error('Save error:', error)
+      console.error('[eval] save error:', error.message, error.details, error.code)
       setPhase('result')
       setErrorMsg('Failed to save — please try again · Salvataggio fallito.')
       return
     }
 
+    console.log('[eval] saved entry id:', data?.id)
     // Optimistic local update (Realtime will also fire)
     if (data) dispatch({ type: 'UPSERT_ENTRY', entry: data })
 
@@ -368,6 +436,8 @@ export default function EvaluatePage() {
       const nextItem = aiResults[nextIdx]
       setCurrentItemIndex(nextIdx)
       setOverrideDecision(nextItem.final_decision)
+      setOverridePhase(nextItem.action_phase ?? null)
+      setOverrideTags([])
       setOverrideReason('')
       setErrorMsg('')
       setToastMsg(`✓ ${aiResult.item_name} saved · ${nextIdx + 1} of ${aiResults.length}`)
@@ -431,6 +501,7 @@ export default function EvaluatePage() {
   // ─── Reset to camera ──────────────────────────────────────────────────────
 
   function resetToCamera() {
+    console.log('[eval] resetToCamera')
     setAiResults([])
     setCurrentItemIndex(0)
     setSavedCount(0)
@@ -595,17 +666,29 @@ export default function EvaluatePage() {
                 </span>
               </div>
             )}
-            <ResultCard
-              result={aiResult}
-              saving={phase === 'saving'}
-              errorMsg={errorMsg}
-              usDestination={settings.usDestination}
-              onConfirm={() => saveEntry(aiResult.final_decision)}
-              onOverride={() => {
-                setOverrideDecision(aiResult.final_decision)
-                setPhase('override')
-              }}
-            />
+            {(() => {
+              const matchedRule = findMatchingRule(aiResult, settings.decisionRules ?? [])
+              const ruleConflict = matchedRule && ruleDisagreesWithAi(matchedRule, aiResult.final_decision, aiResult.action_phase ?? null)
+              return (
+                <ResultCard
+                  result={aiResult}
+                  saving={phase === 'saving'}
+                  errorMsg={errorMsg}
+                  usDestination={settings.usDestination}
+                  settings={settings}
+                  matchedRule={ruleConflict ? matchedRule : null}
+                  onConfirm={() => saveEntry(aiResult.final_decision, undefined, aiResult.action_phase)}
+                  onAcceptRule={ruleConflict ? () => saveEntry(matchedRule.defaultDecision, `Rule: ${matchedRule.name}`, matchedRule.defaultPhase) : undefined}
+                  onOverride={() => {
+                    setOverrideDecision(aiResult.final_decision)
+                    setOverridePhase(aiResult.action_phase ?? null)
+                    setOverrideTags([])
+                    setPhase('override')
+                  }}
+                  onCancel={handleCancel}
+                />
+              )
+            })()}
           </>
         )}
 
@@ -613,12 +696,23 @@ export default function EvaluatePage() {
         {phase === 'override' && (
           <OverrideOverlay
             current={overrideDecision}
+            currentPhase={overridePhase}
+            tags={overrideTags}
             reason={overrideReason}
             usDestination={settings.usDestination}
-            onChange={setOverrideDecision}
+            onChange={(d) => {
+              setOverrideDecision(d)
+              if (PHASED_DECISIONS.includes(d) && !overridePhase) {
+                setOverridePhase('NOW')
+              } else if (!PHASED_DECISIONS.includes(d)) {
+                setOverridePhase(null)
+              }
+            }}
+            onPhaseChange={setOverridePhase}
+            onTagsChange={setOverrideTags}
             onReasonChange={setOverrideReason}
             onCancel={() => setPhase('result')}
-            onSave={() => saveEntry(overrideDecision, overrideReason || undefined)}
+            onSave={() => saveEntry(overrideDecision, overrideReason || undefined, overridePhase, overrideTags)}
           />
         )}
 
@@ -781,25 +875,74 @@ function ResultCard({
   saving,
   errorMsg,
   usDestination,
+  settings,
+  matchedRule,
   onConfirm,
+  onAcceptRule,
   onOverride,
+  onCancel,
 }: {
   result: AiResult
   saving: boolean
   errorMsg: string
   usDestination: string
+  settings: import('../lib/types').CernitaSettings
+  matchedRule: DecisionRule | null
   onConfirm: () => void
+  onAcceptRule?: () => void
   onOverride: () => void
+  onCancel: () => void
 }) {
-  const label = getDecisionLabel(result.final_decision as Decision, usDestination)
+  const label = getDecisionLabel(result.final_decision as Decision, usDestination, result.action_phase)
   const badgeClass = DECISION_BADGE_CLASS[result.final_decision as Decision] ?? 'badge'
   const showPreservation = result.fragility && result.fragility !== 'none'
   const confidence = result.confidence ?? 'medium'
+  const dual = computePerspectives(result.net_cost_ship, result.replacement_cost, settings)
   const restriction = result.shipping_restriction
+
+  // Rule conflict display
+  const ruleLabel = matchedRule
+    ? getDecisionLabel(matchedRule.defaultDecision, usDestination, matchedRule.defaultPhase)
+    : null
+  const ruleBadgeClass = matchedRule
+    ? DECISION_BADGE_CLASS[matchedRule.defaultDecision] ?? 'badge'
+    : ''
 
   return (
     <div className="result-shell">
       <div className="result-card">
+
+        {/* Rule conflict banner — shown above everything when a rule disagrees with AI */}
+        {matchedRule && ruleLabel && (
+          <div className="rule-conflict-banner">
+            <div className="rule-conflict-header">
+              <span className="rule-conflict-icon">⚖</span>
+              <span className="rule-conflict-title">Rule conflict · Conflitto regola</span>
+            </div>
+            <div className="rule-conflict-body">
+              <p className="rule-conflict-text">
+                Your rule <strong>"{matchedRule.name}"</strong> says{' '}
+                <span className={`${ruleBadgeClass} badge-inline`}>{ruleLabel.en}</span>
+              </p>
+              <p className="rule-conflict-text">
+                AI suggested{' '}
+                <span className={`${badgeClass} badge-inline`}>{label.en}</span>
+              </p>
+              <p className="rule-conflict-summary ink-soft">
+                {formatRuleSummary(matchedRule)}
+              </p>
+            </div>
+            {onAcceptRule && (
+              <button
+                className="btn-primary rule-accept-btn"
+                onClick={onAcceptRule}
+                disabled={saving}
+              >
+                Accept rule → {ruleLabel.en} · Accetta regola
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Shipping restriction banner — shown prominently above everything else */}
         {restriction && restriction !== 'none' && (
@@ -835,6 +978,7 @@ function ResultCard({
         <div className="result-decision-row">
           <span className={`${badgeClass} result-badge`}>{label.en}</span>
           {label.it && <em className="result-decision-it serif">{label.it}</em>}
+          {matchedRule && <span className="rule-source-label ink-soft">AI recommendation</span>}
         </div>
 
         {/* Item name */}
@@ -858,6 +1002,41 @@ function ResultCard({
           <span className={`confidence-pill confidence-${confidence}`}>{confidence}</span>
           <span className="ink-soft" style={{ fontSize: 12 }}>confidence · fiducia</span>
         </div>
+
+        {/* Dual perspectives */}
+        {dual.hasData && (
+          <div className="perspectives-section">
+            <p className="perspectives-label">Perspectives · Prospettive</p>
+            <div className="perspectives-grid">
+              <div className={`perspective-card perspective-${dual.ship.decision.toLowerCase()}`}>
+                <p className="perspective-lens">{dual.ship.label.en}</p>
+                <p className="perspective-lens-it">{dual.ship.label.it}</p>
+                <span className={`perspective-verdict perspective-verdict-${dual.ship.decision.toLowerCase()}`}>
+                  {dual.ship.decision === 'SHIP-ITALY' ? '📦 Ship' : dual.ship.decision === 'SELL' ? '💰 Sell' : '⚖ Neutral'}
+                </span>
+                <p className="perspective-reason">{dual.ship.reason.en}</p>
+                <p className="perspective-reason-it">{dual.ship.reason.it}</p>
+              </div>
+              <div className={`perspective-card perspective-${dual.save.decision.toLowerCase()}`}>
+                <p className="perspective-lens">{dual.save.label.en}</p>
+                <p className="perspective-lens-it">{dual.save.label.it}</p>
+                <span className={`perspective-verdict perspective-verdict-${dual.save.decision.toLowerCase()}`}>
+                  {dual.save.decision === 'SHIP-ITALY' ? '📦 Ship' : dual.save.decision === 'SELL' ? '💰 Sell' : '⚖ Neutral'}
+                </span>
+                <p className="perspective-reason">{dual.save.reason.en}</p>
+                <p className="perspective-reason-it">{dual.save.reason.it}</p>
+              </div>
+            </div>
+            <div className={`perspectives-agreement ${dual.agree ? 'agree' : 'disagree'}`}>
+              <span className="agreement-icon">{dual.agree ? '✓' : '⚡'}</span>
+              <span className="agreement-text">
+                {dual.agree
+                  ? 'Both perspectives agree · Entrambe le prospettive concordano'
+                  : 'Perspectives disagree — needs discussion · Le prospettive sono discordi — richiede discussione'}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Rationale */}
         {result.recommendation_rationale && (
@@ -923,6 +1102,14 @@ function ResultCard({
           >
             Override decision · Cambia decisione
           </button>
+          <button
+            className="btn-link"
+            onClick={onCancel}
+            disabled={saving}
+            style={{ marginTop: 8, width: '100%' }}
+          >
+            ← Back to camera · Torna alla fotocamera
+          </button>
         </div>
       </div>
     </div>
@@ -943,6 +1130,13 @@ function EconomicsTable({ result }: { result: AiResult }) {
 
   if (!hasAnyEcon) return null
 
+  // net_cost_storage is now "savings vs replacement" — positive = shipping saves money
+  const savings = result.net_cost_storage
+  const savingsLabel = savings != null && savings >= 0
+    ? 'Ship saves'
+    : 'Replace saves'
+  const savingsClass = savings != null && savings >= 0 ? 'savings-positive' : 'savings-negative'
+
   return (
     <div className="economics-section">
       <p className="economics-label">Economics · Costi</p>
@@ -960,28 +1154,28 @@ function EconomicsTable({ result }: { result: AiResult }) {
               <td className="num">{fmt(result.replacement_cost)}</td>
             </tr>
           )}
-          {result.ship_cost != null && (
-            <tr>
-              <td>Ship cost</td>
-              <td className="num">{fmt(result.ship_cost)}</td>
-            </tr>
-          )}
           {result.storage_cost_total != null && (
             <tr>
-              <td>Storage cost</td>
+              <td>Move to CO <Em>truck</Em></td>
               <td className="num">{fmt(result.storage_cost_total)}</td>
+            </tr>
+          )}
+          {result.ship_cost != null && (
+            <tr>
+              <td>Ocean ship <Em>CO→Italy</Em></td>
+              <td className="num">{fmt(result.ship_cost)}</td>
             </tr>
           )}
           {result.net_cost_ship != null && (
             <tr className="net-row">
-              <td><strong>Net if shipped</strong></td>
-              <td className="num"><strong>{fmtNet(result.net_cost_ship)}</strong></td>
+              <td><strong>Total to Italy</strong></td>
+              <td className="num"><strong>{fmt(result.net_cost_ship)}</strong></td>
             </tr>
           )}
-          {result.net_cost_storage != null && (
-            <tr className="net-row">
-              <td><strong>Net if stored</strong></td>
-              <td className="num"><strong>{fmtNet(result.net_cost_storage)}</strong></td>
+          {savings != null && result.replacement_cost != null && (
+            <tr className={`net-row ${savingsClass}`}>
+              <td><strong>{savingsLabel}</strong></td>
+              <td className="num"><strong>{fmt(Math.abs(savings))}</strong></td>
             </tr>
           )}
           {result.weight_lb != null && (
@@ -1004,21 +1198,39 @@ function Em({ children }: { children: React.ReactNode }) {
 
 function OverrideOverlay({
   current,
+  currentPhase,
+  tags,
   reason,
   usDestination,
   onChange,
+  onPhaseChange,
+  onTagsChange,
   onReasonChange,
   onCancel,
   onSave,
 }: {
   current: Decision
+  currentPhase: ActionPhase | null
+  tags: OverrideTagId[]
   reason: string
   usDestination: string
   onChange: (d: Decision) => void
+  onPhaseChange: (p: ActionPhase | null) => void
+  onTagsChange: (tags: OverrideTagId[]) => void
   onReasonChange: (r: string) => void
   onCancel: () => void
   onSave: () => void
 }) {
+  const showPhase = PHASED_DECISIONS.includes(current)
+
+  function toggleTag(tagId: OverrideTagId) {
+    if (tags.includes(tagId)) {
+      onTagsChange(tags.filter(t => t !== tagId))
+    } else {
+      onTagsChange([...tags, tagId])
+    }
+  }
+
   return (
     <div className="overlay-backdrop" onClick={e => { if (e.target === e.currentTarget) onCancel() }}>
       <div className="override-sheet">
@@ -1029,7 +1241,7 @@ function OverrideOverlay({
           className="input"
           value={current}
           onChange={e => onChange(e.target.value as Decision)}
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: showPhase ? 8 : 16 }}
         >
           {VALID_DECISIONS.map(d => {
             const lbl = getDecisionLabel(d, usDestination)
@@ -1039,13 +1251,50 @@ function OverrideOverlay({
           })}
         </select>
 
-        <label className="input-label">Reason (optional) · Motivo</label>
+        {showPhase && (
+          <>
+            <label className="input-label" style={{ marginTop: 8 }}>When · Quando</label>
+            <div className="phase-picker" style={{ marginBottom: 16 }}>
+              <button
+                className={`phase-pill${currentPhase === 'NOW' ? ' active' : ''}`}
+                onClick={() => onPhaseChange('NOW')}
+                type="button"
+              >
+                Now · Ora
+              </button>
+              <button
+                className={`phase-pill${currentPhase === 'COLORADO' ? ' active' : ''}`}
+                onClick={() => onPhaseChange('COLORADO')}
+                type="button"
+              >
+                Colorado
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Override tags */}
+        <label className="input-label">Why? (select all that apply) · Perché? (seleziona tutto)</label>
+        <div className="override-tags-picker">
+          {OVERRIDE_TAGS.map(tag => (
+            <button
+              key={tag.id}
+              type="button"
+              className={`override-tag-pill${tags.includes(tag.id) ? ' active' : ''}`}
+              onClick={() => toggleTag(tag.id)}
+            >
+              {tag.en} · {tag.it}
+            </button>
+          ))}
+        </div>
+
+        <label className="input-label" style={{ marginTop: 14 }}>Additional notes (optional) · Note aggiuntive</label>
         <textarea
           className="input"
-          style={{ minHeight: 80, resize: 'vertical', marginBottom: 20 }}
+          style={{ minHeight: 60, resize: 'vertical', marginBottom: 20 }}
           value={reason}
           onChange={e => onReasonChange(e.target.value)}
-          placeholder="Why are you overriding? · Perché stai cambiando?"
+          placeholder="Any extra context… · Contesto aggiuntivo…"
         />
 
         <div style={{ display: 'flex', gap: 10 }}>

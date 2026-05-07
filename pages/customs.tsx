@@ -318,9 +318,9 @@ export default function CustomsPage() {
   const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set())
   const [shipmentMode, setShipmentMode] = useState<'all' | 'split'>('all')
 
-  // Filter KEEP-ITALY items
+  // Filter SHIP-ITALY items
   const keepItaly = useMemo(
-    () => entries.filter(e => e.final_decision === 'KEEP-ITALY'),
+    () => entries.filter(e => e.final_decision === 'SHIP-ITALY'),
     [entries]
   )
 
@@ -420,7 +420,7 @@ export default function CustomsPage() {
               <p className="italic ink-soft">
                 Nessun oggetto destinato all&apos;Italia.
                 <br />
-                Mark items as KEEP-ITALY to include them in the customs declaration.
+                Mark items as SHIP-ITALY to include them in the customs declaration.
               </p>
             </div>
           ) : view === 'incomplete' ? (
@@ -513,7 +513,7 @@ export default function CustomsPage() {
                   <p className="ink-soft" style={{ fontSize: 12, marginTop: 8, textAlign: 'center' }}>
                     {!profileComplete && 'Complete your declarant profile in Settings. '}
                     {!completeness.isComplete && 'All items must have acquisition year, value, and Italian name. '}
-                    {declarable.length === 0 && 'No KEEP-ITALY items to declare.'}
+                    {declarable.length === 0 && 'No SHIP-ITALY items to declare.'}
                   </p>
                 )}
               </div>

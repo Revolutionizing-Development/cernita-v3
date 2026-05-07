@@ -2,13 +2,13 @@
 
 > *La cernita.* The sorting. What comes, what stays, what goes.
 
-Version 1.5 · drafted April 27, 2026 · revised May 3, 2026
+Version 1.6 · drafted April 27, 2026 · revised May 7, 2026
 
 ---
 
 ## Purpose
 
-Cernita exists to help two people make ~500–1,000 small but consequential decisions about their physical belongings during an international move from Galesburg, Illinois → Lubbock, Texas → a stone farmhouse near Todi, Umbria, Italy.
+Cernita exists to help two people make ~500–1,000 small but consequential decisions about their physical belongings during an international move from Galesburg, Illinois → Colorado Springs, Colorado → a stone farmhouse near Todi, Umbria, Italy.
 
 The decisions are **economic** (what costs less, all-in?), **practical** (will it survive 18 months in storage and an ocean container?), **logistical** (which bin, which trip, which suitcase?), and **emotional** (does this object carry meaning that math can't price?).
 
@@ -188,6 +188,27 @@ The simple comparison "ship $90 vs replace $400" is incomplete when an item has 
 
 ---
 
+## Principle 14 — Security is verified before every release, not assumed after one audit
+
+The security and safety requirements defined in spec 017 are not a one-time checklist. They are a pre-release gate. Before any feature, build, or code change is packaged for deployment, the applicable security requirements must be verified — not retroactively, not "we'll audit later," not "it's the same pattern as last time."
+
+This principle exists because AI-assisted development can produce correct-looking code at high velocity. Velocity without verification is a liability, not an asset. The verification step is what makes the velocity defensible.
+
+**In practice:**
+- Every build verifies: type safety (`tsc --noEmit`), production build (`next build`), and no regressions in the security posture
+- New API routes must call `requireAuth()` as their first operation — no exceptions, no "we'll add auth later"
+- New dependencies require documented justification against Principle 7 and a clean `npm audit`
+- New pages must be wrapped in `AuthGuard` — unauthenticated access is a shipping blocker, not a follow-up ticket
+- Server-side secrets (`ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) must never appear in client-side code — verified by searching the build output
+- Security headers (CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy) are configured globally and verified after any `next.config.mjs` change
+- AI output validation (unknown decisions → `NEEDS-HUMAN`, JSON parse in try/catch) is verified in code review for any change to the evaluation pipeline
+- The OWASP Top 10 mapping in spec 017 §6 is reviewed when a new feature introduces a new attack surface (new API endpoint, new data type, new external integration)
+- The risk acceptance register in spec 017 §9 is updated when a new risk is identified and consciously accepted
+
+The goal is not zero risk — it is **no unexamined risk**. Every gap is either closed or documented with a rationale. "We didn't think about it" is the only unacceptable answer.
+
+---
+
 ## What this Constitution is not
 
 This document does not describe:
@@ -203,6 +224,7 @@ If a future change requires violating a principle here, the right move is to **p
 
 ## Amendment log
 
+- **v1.6** (May 7, 2026) — Added Principle 14: security is verified before every release. Mandates that spec 017 security requirements are a pre-release gate, not a one-time audit. Every build must verify type safety, auth coverage, dependency security, secret isolation, and security headers. New attack surfaces trigger OWASP mapping review. Risk register must be maintained — "we didn't think about it" is the only unacceptable answer. Also updates move route from "Lubbock, Texas" to "Colorado Springs, Colorado" in Purpose section.
 - **v1.5** (May 3, 2026) — Principle 3 rewritten from "data lives with the user" to "data belongs to the user". Separates data sovereignty (real value: portable, exportable, deletable) from user-managed infrastructure (implementation detail that harmed the non-technical partner). Backend now manages database connection and API keys server-side; authentication is a normal login screen. Implements amendment proposal 002.
 - **v1.4** (April 28, 2026) — Added Principle 13: preservation is part of the math. Items deteriorate in storage and transit; honest decisions account for that survival probability. The AI flags risk in the rationale, surfaces required packing precautions, and lowers confidence when survival is in doubt. The user retains final authority. Implements amendment proposal 001.
 - **v1.3** (April 27, 2026) — Added Principle 12: outputs submitted to authorities, insurers, or service providers at the destination must conform to those entities' actual format requirements. Captures Italian customs forms, insurance manifests, moving company inventories, and future destination paperwork. Authoritative format specs live in `/specs/standards/`.
