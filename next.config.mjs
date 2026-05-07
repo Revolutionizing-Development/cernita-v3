@@ -1,4 +1,22 @@
 /** @type {import('next').NextConfig} */
+
+// Build CSP connect-src from the actual Supabase URL so we don't rely
+// on wildcard patterns that some mobile browsers handle inconsistently.
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+let connectSrc = "'self'"
+if (supabaseUrl) {
+  try {
+    const { protocol, host } = new URL(supabaseUrl)
+    connectSrc += ` ${protocol}//${host} wss://${host}`
+  } catch {
+    // Fallback: allow all HTTPS/WSS if URL parsing fails
+    connectSrc += ' https: wss:'
+  }
+} else {
+  // No Supabase URL at build time — allow all secure connections
+  connectSrc += ' https: wss:'
+}
+
 const nextConfig = {
   reactStrictMode: true,
   async headers() {
@@ -34,7 +52,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data:",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com",
+              `connect-src ${connectSrc}`,
               "frame-ancestors 'none'",
             ].join('; '),
           },
