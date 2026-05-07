@@ -270,6 +270,106 @@ export const DEFAULT_CUSTOMS_PROFILE: CustomsDeclarantProfile = {
   arrivalDateEstimate: '',
 }
 
+// ─── Decision rules (spec 016 Part 4) ────────────────────────────────────
+
+export type RuleField =
+  | 'customs_category'       // CustomsCategory string
+  | 'replacement_cost'       // number
+  | 'ship_cost'              // number (ocean leg only)
+  | 'net_cost_ship'          // number (total to Italy)
+  | 'weight_lb'              // number
+  | 'voltage_incompatible'   // boolean
+  | 'shipping_restriction'   // 'none' | 'restricted' | 'prohibited'
+  | 'fragility'              // 'none' | 'low' | 'medium' | 'high' | 'irreplaceable'
+  | 'oversized'              // boolean
+
+export const RULE_FIELD_LABELS: Record<RuleField, { en: string; it: string }> = {
+  customs_category:     { en: 'Category',              it: 'Categoria' },
+  replacement_cost:     { en: 'Replacement cost',      it: 'Costo di sostituzione' },
+  ship_cost:            { en: 'Ocean ship cost',       it: 'Costo spedizione' },
+  net_cost_ship:        { en: 'Total cost to Italy',   it: 'Costo totale per Italia' },
+  weight_lb:            { en: 'Weight (lb)',            it: 'Peso (lb)' },
+  voltage_incompatible: { en: 'Voltage incompatible',  it: 'Voltaggio incompatibile' },
+  shipping_restriction: { en: 'Shipping restriction',  it: 'Restrizione spedizione' },
+  fragility:            { en: 'Fragility',             it: 'Fragilità' },
+  oversized:            { en: 'Oversized',             it: 'Fuori misura' },
+}
+
+export type RuleOperator = 'eq' | 'neq' | 'lt' | 'gt' | 'lte' | 'gte' | 'contains'
+
+export const RULE_OPERATOR_LABELS: Record<RuleOperator, string> = {
+  eq:       '=',
+  neq:      '≠',
+  lt:       '<',
+  gt:       '>',
+  lte:      '≤',
+  gte:      '≥',
+  contains: 'contains',
+}
+
+export interface RuleCondition {
+  field: RuleField
+  operator: RuleOperator
+  value: string | number | boolean
+}
+
+export interface DecisionRule {
+  id: string                              // UUID
+  name: string                            // user-visible label
+  conditions: RuleCondition[]             // ALL must match (AND logic)
+  defaultDecision: Decision               // what to suggest
+  defaultPhase: ActionPhase | null        // for SELL/DONATE/CONSUME
+  priority: number                        // lower = higher priority
+  enabled: boolean
+  createdBy: 'user' | 'suggested'         // user-created vs system-suggested
+  acceptedAt: string | null               // when a suggested rule was accepted
+}
+
+export interface RuleSuggestion {
+  rule: DecisionRule                       // the proposed rule
+  evidence: {
+    matchCount: number                     // how many overrides match this pattern
+    exampleItems: string[]                 // item names for display
+    commonTags: OverrideTagId[]            // which override tags drove this
+  }
+}
+
+// Operators valid for each field type
+export function getOperatorsForField(field: RuleField): RuleOperator[] {
+  switch (field) {
+    case 'replacement_cost':
+    case 'ship_cost':
+    case 'net_cost_ship':
+    case 'weight_lb':
+      return ['eq', 'neq', 'lt', 'gt', 'lte', 'gte']
+    case 'voltage_incompatible':
+    case 'oversized':
+      return ['eq']
+    case 'customs_category':
+    case 'shipping_restriction':
+    case 'fragility':
+      return ['eq', 'neq']
+    default:
+      return ['eq', 'neq']
+  }
+}
+
+// Default value type hint per field
+export function getFieldValueType(field: RuleField): 'number' | 'boolean' | 'select' {
+  switch (field) {
+    case 'replacement_cost':
+    case 'ship_cost':
+    case 'net_cost_ship':
+    case 'weight_lb':
+      return 'number'
+    case 'voltage_incompatible':
+    case 'oversized':
+      return 'boolean'
+    default:
+      return 'select'
+  }
+}
+
 export interface CernitaSettings {
   // Move route
   usDestination: string        // the intermediate US city (e.g. "Colorado Springs")
@@ -309,6 +409,8 @@ export interface CernitaSettings {
   perspectiveSaveShipThreshold: number
   // Save perspective: sell if ship_cost > replacement * this factor
   perspectiveSaveSellThreshold: number
+  // Decision rules (spec 016 Part 4) — structured filters that suggest decisions
+  decisionRules: DecisionRule[]
 }
 
 export const DEFAULT_SETTINGS: CernitaSettings = {
@@ -333,4 +435,5 @@ export const DEFAULT_SETTINGS: CernitaSettings = {
   perspectiveSellThreshold: 0.5,
   perspectiveSaveShipThreshold: 0.3,
   perspectiveSaveSellThreshold: 0.7,
+  decisionRules: [],
 }

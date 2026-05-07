@@ -7,8 +7,9 @@ import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import haptic from '../lib/haptic'
-import { Box, Decision, ActionPhase, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, ACTION_PHASE_LABELS, OVERRIDE_TAGS, OverrideTagId } from '../lib/types'
+import { Box, Decision, ActionPhase, DecisionRule, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, ACTION_PHASE_LABELS, OVERRIDE_TAGS, OverrideTagId } from '../lib/types'
 import { computePerspectives, shouldAutoNeedsHuman, perspectiveConfidence, DualPerspective } from '../lib/perspectives'
+import { findMatchingRule, ruleDisagreesWithAi, formatRuleSummary } from '../lib/rules'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -665,21 +666,29 @@ export default function EvaluatePage() {
                 </span>
               </div>
             )}
-            <ResultCard
-              result={aiResult}
-              saving={phase === 'saving'}
-              errorMsg={errorMsg}
-              usDestination={settings.usDestination}
-              settings={settings}
-              onConfirm={() => saveEntry(aiResult.final_decision, undefined, aiResult.action_phase)}
-              onOverride={() => {
-                setOverrideDecision(aiResult.final_decision)
-                setOverridePhase(aiResult.action_phase ?? null)
-                setOverrideTags([])
-                setPhase('override')
-              }}
-              onCancel={handleCancel}
-            />
+            {(() => {
+              const matchedRule = findMatchingRule(aiResult, settings.decisionRules ?? [])
+              const ruleConflict = matchedRule && ruleDisagreesWithAi(matchedRule, aiResult.final_decision, aiResult.action_phase ?? null)
+              return (
+                <ResultCard
+                  result={aiResult}
+                  saving={phase === 'saving'}
+                  errorMsg={errorMsg}
+                  usDestination={settings.usDestination}
+                  settings={settings}
+                  matchedRule={ruleConflict ? matchedRule : null}
+                  onConfirm={() => saveEntry(aiResult.final_decision, undefined, aiResult.action_phase)}
+                  onAcceptRule={ruleConflict ? () => saveEntry(matchedRule.defaultDecision, `Rule: ${matchedRule.name}`, matchedRule.defaultPhase) : undefined}
+                  onOverride={() => {
+                    setOverrideDecision(aiResult.final_decision)
+                    setOverridePhase(aiResult.action_phase ?? null)
+                    setOverrideTags([])
+                    setPhase('override')
+                  }}
+                  onCancel={handleCancel}
+                />
+              )
+            })()}
           </>
         )}
 
@@ -867,7 +876,9 @@ function ResultCard({
   errorMsg,
   usDestination,
   settings,
+  matchedRule,
   onConfirm,
+  onAcceptRule,
   onOverride,
   onCancel,
 }: {
@@ -876,7 +887,9 @@ function ResultCard({
   errorMsg: string
   usDestination: string
   settings: import('../lib/types').CernitaSettings
+  matchedRule: DecisionRule | null
   onConfirm: () => void
+  onAcceptRule?: () => void
   onOverride: () => void
   onCancel: () => void
 }) {
@@ -887,9 +900,49 @@ function ResultCard({
   const dual = computePerspectives(result.net_cost_ship, result.replacement_cost, settings)
   const restriction = result.shipping_restriction
 
+  // Rule conflict display
+  const ruleLabel = matchedRule
+    ? getDecisionLabel(matchedRule.defaultDecision, usDestination, matchedRule.defaultPhase)
+    : null
+  const ruleBadgeClass = matchedRule
+    ? DECISION_BADGE_CLASS[matchedRule.defaultDecision] ?? 'badge'
+    : ''
+
   return (
     <div className="result-shell">
       <div className="result-card">
+
+        {/* Rule conflict banner — shown above everything when a rule disagrees with AI */}
+        {matchedRule && ruleLabel && (
+          <div className="rule-conflict-banner">
+            <div className="rule-conflict-header">
+              <span className="rule-conflict-icon">⚖</span>
+              <span className="rule-conflict-title">Rule conflict · Conflitto regola</span>
+            </div>
+            <div className="rule-conflict-body">
+              <p className="rule-conflict-text">
+                Your rule <strong>"{matchedRule.name}"</strong> says{' '}
+                <span className={`${ruleBadgeClass} badge-inline`}>{ruleLabel.en}</span>
+              </p>
+              <p className="rule-conflict-text">
+                AI suggested{' '}
+                <span className={`${badgeClass} badge-inline`}>{label.en}</span>
+              </p>
+              <p className="rule-conflict-summary ink-soft">
+                {formatRuleSummary(matchedRule)}
+              </p>
+            </div>
+            {onAcceptRule && (
+              <button
+                className="btn-primary rule-accept-btn"
+                onClick={onAcceptRule}
+                disabled={saving}
+              >
+                Accept rule → {ruleLabel.en} · Accetta regola
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Shipping restriction banner — shown prominently above everything else */}
         {restriction && restriction !== 'none' && (
@@ -925,6 +978,7 @@ function ResultCard({
         <div className="result-decision-row">
           <span className={`${badgeClass} result-badge`}>{label.en}</span>
           {label.it && <em className="result-decision-it serif">{label.it}</em>}
+          {matchedRule && <span className="rule-source-label ink-soft">AI recommendation</span>}
         </div>
 
         {/* Item name */}
