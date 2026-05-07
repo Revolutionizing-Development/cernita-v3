@@ -16,6 +16,9 @@ import {
   CUSTOMS_CATEGORY_LABELS, CustomsCategory,
 } from '../lib/types'
 import { suggestRules, formatRuleSummary, formatCondition } from '../lib/rules'
+import { HelpAccordion } from '../components/Walkthrough'
+import { HelpHint as HelpHintInline } from '../components/HelpHint'
+import { replayWalkthrough } from './_app'
 
 export default function SettingsPage() {
   const { state, dispatch } = useApp()
@@ -522,6 +525,18 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* ── Help & Guide ── */}
+          <h2 className="section-header">
+            Help & Guide · <em className="italic ink-soft">Guida</em>
+          </h2>
+          <p className="settings-hint" style={{ marginBottom: 12 }}>
+            Learn how Cernita works: the three-phase journey, dual perspectives,
+            overrides, and more.
+          </p>
+          <div className="card" style={{ marginBottom: 24 }}>
+            <HelpAccordion onReplay={replayWalkthrough} />
+          </div>
+
           {/* ── Maintenance ── */}
           <h2 className="section-header">
             Maintenance · <em className="italic ink-soft">Manutenzione</em>
@@ -684,6 +699,12 @@ function DecisionRulesManager({
       {/* Suggestions from override patterns */}
       {suggestions.length > 0 && showSuggestions && (
         <div className="rule-suggestions">
+          <HelpHintInline id="first-rule-suggestion">
+            <p>This rule was suggested based on your override patterns. Accept it to automate future evaluations, or dismiss it.</p>
+            <p className="italic ink-soft" style={{ fontSize: 12, marginTop: 4 }}>
+              Questa regola è suggerita in base alle tue correzioni. Accettala per automatizzare, o ignorala.
+            </p>
+          </HelpHintInline>
           <p className="rule-suggestions-label">
             Suggested rules · <em className="italic">Regole suggerite</em>
           </p>
