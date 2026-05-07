@@ -1,4 +1,4 @@
-import { Entry, CustomsCategory, CustomsDeclarantProfile, CernitaSettings, CUSTOMS_CATEGORY_LABELS } from './types'
+import { Entry, Box, CustomsCategory, CustomsDeclarantProfile, CernitaSettings, CUSTOMS_CATEGORY_LABELS } from './types'
 
 // ─── Auto-assign customs category from item name ─────────────────────────────
 // Rule-based keyword matching (spec 015 Q1: no AI call needed)
@@ -42,12 +42,35 @@ export interface CustomsCompleteness {
   excluded: Entry[]
   ready: Entry[]
   isComplete: boolean
+  /** Active-use SHIP-ITALY items not yet confirmed for Italy (spec 016 Part 3) */
+  activeUseUnconfirmed: Entry[]
 }
 
-export function checkCompleteness(entries: Entry[]): CustomsCompleteness {
-  const keepItaly = entries.filter(e =>
+/**
+ * Check whether an entry is in an active-use box and not yet confirmed for Italy.
+ * These items are excluded from the customs declaration until re-confirmed.
+ */
+export function isActiveUseUnconfirmed(entry: Entry, boxes: Box[]): boolean {
+  if (entry.final_decision !== 'SHIP-ITALY') return false
+  if (entry.italy_confirmed) return false
+  if (!entry.box_id) return false
+  const box = boxes.find(b => b.id === entry.box_id)
+  return box?.colorado_placement === 'ACTIVE-USE'
+}
+
+export function checkCompleteness(entries: Entry[], boxes: Box[] = []): CustomsCompleteness {
+  // All SHIP-ITALY items, minus those explicitly excluded
+  const allShipItaly = entries.filter(e =>
     e.final_decision === 'SHIP-ITALY' && !e.customs_exclude
   )
+
+  // Active-use items not yet confirmed for Italy are excluded from the declaration
+  const activeUseUnconfirmed = allShipItaly.filter(e => isActiveUseUnconfirmed(e, boxes))
+  const activeUseIds = new Set(activeUseUnconfirmed.map(e => e.id))
+
+  // Customs-eligible = SHIP-ITALY, not excluded, not unconfirmed active-use
+  const keepItaly = allShipItaly.filter(e => !activeUseIds.has(e.id))
+
   const excluded = entries.filter(e =>
     e.final_decision === 'SHIP-ITALY' && e.customs_exclude
   )
@@ -67,6 +90,7 @@ export function checkCompleteness(entries: Entry[]): CustomsCompleteness {
       e.acquisition_year && (e.estimated_resale_value != null || e.replacement_cost != null) && e.item_name_it
     ),
     isComplete: missingYear.length === 0 && missingValue.length === 0 && missingItalianName.length === 0,
+    activeUseUnconfirmed,
   }
 }
 

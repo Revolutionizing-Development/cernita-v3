@@ -7,7 +7,8 @@ import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import haptic from '../lib/haptic'
 import {
-  Entry, CustomsCategory, CUSTOMS_CATEGORY_LABELS, DEFAULT_CUSTOMS_PROFILE,
+  Entry, Box, Decision, CustomsCategory, CUSTOMS_CATEGORY_LABELS, DEFAULT_CUSTOMS_PROFILE,
+  DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel,
 } from '../lib/types'
 import {
   autoAssignCategory, checkCompleteness, groupByCategory,
@@ -305,9 +306,298 @@ function DeclarationPreview({
   )
 }
 
+// ─── Italy Confirmation Flow (spec 016 Part 3) ─────────────────────────────────
+
+type ItemCondition = 'good' | 'worn' | 'broken'
+
+const CONDITION_LABELS: Record<ItemCondition, { en: string; it: string }> = {
+  good:   { en: 'Good condition',  it: 'Buone condizioni' },
+  worn:   { en: 'Worn / used',    it: 'Usato / consumato' },
+  broken: { en: 'Broken',         it: 'Rotto' },
+}
+
+const CHANGE_DECISIONS: Decision[] = ['SELL', 'DONATE', 'DISPOSE']
+
+function ItalyConfirmationFlow({
+  items,
+  settings,
+  onUpdate,
+  onBack,
+}: {
+  items: Entry[]
+  settings: import('../lib/types').CernitaSettings
+  onUpdate: (entry: Entry) => void
+  onBack: () => void
+}) {
+  const [saving, setSaving] = useState<number | null>(null)
+  const [conditions, setConditions] = useState<Record<number, ItemCondition>>({})
+  const [changingDecision, setChangingDecision] = useState<number | null>(null)
+  const [error, setError] = useState('')
+
+  const voltageItems = items.filter(e => e.voltage_incompatible)
+  const compatibleItems = items.filter(e => !e.voltage_incompatible)
+
+  async function handleConfirm(entry: Entry) {
+    setSaving(entry.id)
+    setError('')
+    const { data, error: err } = await supabase
+      .from('cernita_entries')
+      .update({ italy_confirmed: true })
+      .eq('id', entry.id)
+      .select()
+      .single()
+    setSaving(null)
+    if (err || !data) { setError('Save failed — try again.'); return }
+    haptic.confirm()
+    onUpdate(data as Entry)
+  }
+
+  async function handleChangeDecision(entry: Entry, newDecision: Decision) {
+    setSaving(entry.id)
+    setError('')
+    const { data, error: err } = await supabase
+      .from('cernita_entries')
+      .update({
+        final_decision: newDecision,
+        action_phase: 'COLORADO',
+        override_reason: `Re-evaluation: changed from SHIP-ITALY during Italy confirmation review`,
+        user_confirmed: true,
+      })
+      .eq('id', entry.id)
+      .select()
+      .single()
+    setSaving(null)
+    setChangingDecision(null)
+    if (err || !data) { setError('Save failed — try again.'); return }
+    haptic.confirm()
+    onUpdate(data as Entry)
+  }
+
+  async function handleConfirmAllCompatible() {
+    const toConfirm = compatibleItems.filter(e => {
+      const cond = conditions[e.id]
+      return !cond || cond === 'good'
+    })
+    if (toConfirm.length === 0) return
+    setSaving(-1)
+    for (const entry of toConfirm) {
+      const { data, error: err } = await supabase
+        .from('cernita_entries')
+        .update({ italy_confirmed: true })
+        .eq('id', entry.id)
+        .select()
+        .single()
+      if (!err && data) onUpdate(data as Entry)
+    }
+    setSaving(null)
+    haptic.confirm()
+  }
+
+  function fmtCost(n: number | null | undefined): string {
+    if (n == null) return '—'
+    return `$${Math.abs(n).toFixed(0)}`
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <button className="btn-link" onClick={onBack}>&larr; Back to review · Torna alla revisione</button>
+      </div>
+
+      <h3 className="serif" style={{ fontSize: 18, marginBottom: 4 }}>
+        Confirm for Italy · <em className="italic ink-soft">Conferma per l&apos;Italia</em>
+      </h3>
+      <p className="ink-soft" style={{ fontSize: 13, marginBottom: 16 }}>
+        These items are in active use in Colorado and marked SHIP-ITALY.
+        Review each one before it appears on the customs declaration.
+      </p>
+
+      {error && <p className="eval-error-text" style={{ marginBottom: 12 }}>{error}</p>}
+
+      {voltageItems.length > 0 && (
+        <>
+          <div className="confirm-section-header confirm-section-voltage">
+            <span className="confirm-section-icon">⚡</span>
+            <span>
+              {voltageItems.length} voltage-incompatible · <em className="italic">Voltaggio incompatibile</em>
+            </span>
+          </div>
+          {voltageItems.map(entry => (
+            <ConfirmItemCard
+              key={entry.id}
+              entry={entry}
+              condition={conditions[entry.id]}
+              onConditionChange={c => setConditions(prev => ({ ...prev, [entry.id]: c }))}
+              saving={saving === entry.id}
+              isChanging={changingDecision === entry.id}
+              settings={settings}
+              showVoltageWarning
+              onConfirm={() => handleConfirm(entry)}
+              onStartChange={() => setChangingDecision(entry.id)}
+              onCancelChange={() => setChangingDecision(null)}
+              onChangeDecision={d => handleChangeDecision(entry, d)}
+              fmtCost={fmtCost}
+            />
+          ))}
+        </>
+      )}
+
+      {compatibleItems.length > 0 && (
+        <>
+          <div className="confirm-section-header">
+            <span className="confirm-section-icon">📦</span>
+            <span>
+              {compatibleItems.length} compatible items · <em className="italic">Articoli compatibili</em>
+            </span>
+          </div>
+          {compatibleItems.length > 1 && (
+            <button
+              className="btn-secondary confirm-bulk-btn"
+              onClick={handleConfirmAllCompatible}
+              disabled={saving != null}
+            >
+              Confirm all compatible · Conferma tutti i compatibili ({compatibleItems.length})
+            </button>
+          )}
+          {compatibleItems.map(entry => (
+            <ConfirmItemCard
+              key={entry.id}
+              entry={entry}
+              condition={conditions[entry.id]}
+              onConditionChange={c => setConditions(prev => ({ ...prev, [entry.id]: c }))}
+              saving={saving === entry.id || saving === -1}
+              isChanging={changingDecision === entry.id}
+              settings={settings}
+              showVoltageWarning={false}
+              onConfirm={() => handleConfirm(entry)}
+              onStartChange={() => setChangingDecision(entry.id)}
+              onCancelChange={() => setChangingDecision(null)}
+              onChangeDecision={d => handleChangeDecision(entry, d)}
+              fmtCost={fmtCost}
+            />
+          ))}
+        </>
+      )}
+
+      {items.length === 0 && (
+        <div className="empty-state" style={{ padding: '32px 0' }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>✓</div>
+          <p className="ink-soft">All active-use items confirmed · Tutti gli articoli in uso confermati</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ConfirmItemCard({
+  entry, condition, onConditionChange, saving, isChanging, settings,
+  showVoltageWarning, onConfirm, onStartChange, onCancelChange, onChangeDecision, fmtCost,
+}: {
+  entry: Entry
+  condition: ItemCondition | undefined
+  onConditionChange: (c: ItemCondition) => void
+  saving: boolean
+  isChanging: boolean
+  settings: import('../lib/types').CernitaSettings
+  showVoltageWarning: boolean
+  onConfirm: () => void
+  onStartChange: () => void
+  onCancelChange: () => void
+  onChangeDecision: (d: Decision) => void
+  fmtCost: (n: number | null | undefined) => string
+}) {
+  const savings = entry.net_cost_storage
+  const savingsLabel = savings != null && savings >= 0 ? 'Ship saves' : 'Replace saves'
+
+  return (
+    <div className="confirm-item-card">
+      <div className="confirm-item-header">
+        {entry.photo_data && (
+          <img src={`data:image/jpeg;base64,${entry.photo_data}`} alt={entry.item_name} className="confirm-item-photo" />
+        )}
+        <div className="confirm-item-info">
+          <p className="confirm-item-name serif">{entry.item_name}</p>
+          {entry.item_name_it && <p className="confirm-item-name-it italic ink-soft">{entry.item_name_it}</p>}
+          {entry.item_model && <p className="confirm-item-model ink-soft">{entry.item_model}</p>}
+        </div>
+      </div>
+
+      {showVoltageWarning && (
+        <div className="confirm-voltage-warn">
+          <span>⚡</span>
+          <p>
+            110V — incompatible with Italy (220V/50Hz). Ship anyway, or change decision?
+            <br /><em className="italic ink-soft">Non compatibile con l&apos;Italia. Spedire comunque o cambiare decisione?</em>
+          </p>
+        </div>
+      )}
+
+      <div className="confirm-economics">
+        <div className="confirm-econ-row">
+          <span>Total to Italy</span>
+          <span className="confirm-econ-value">{fmtCost(entry.net_cost_ship)}</span>
+        </div>
+        <div className="confirm-econ-row">
+          <span>Replace in Italy</span>
+          <span className="confirm-econ-value">{fmtCost(entry.replacement_cost)}</span>
+        </div>
+        {savings != null && (
+          <div className={`confirm-econ-row confirm-econ-${savings >= 0 ? 'positive' : 'negative'}`}>
+            <span>{savingsLabel}</span>
+            <span className="confirm-econ-value">{fmtCost(Math.abs(savings))}</span>
+          </div>
+        )}
+        {entry.weight_lb != null && (
+          <div className="confirm-econ-row">
+            <span>Weight</span>
+            <span className="confirm-econ-value">{entry.weight_lb} lb</span>
+          </div>
+        )}
+      </div>
+
+      <div className="confirm-condition">
+        <label className="confirm-condition-label">Condition · <em className="italic ink-soft">Condizioni</em></label>
+        <div className="confirm-condition-pills">
+          {(Object.keys(CONDITION_LABELS) as ItemCondition[]).map(c => (
+            <button key={c} type="button" className={`confirm-condition-pill${condition === c ? ' active' : ''}`} onClick={() => onConditionChange(c)}>
+              {CONDITION_LABELS[c].en}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isChanging ? (
+        <div className="confirm-change-actions">
+          <p className="confirm-change-label">Change to · <em className="italic ink-soft">Cambia in</em></p>
+          <div className="confirm-change-buttons">
+            {CHANGE_DECISIONS.map(d => {
+              const lbl = getDecisionLabel(d, settings.usDestination, 'COLORADO')
+              return (
+                <button key={d} className="btn-secondary confirm-change-btn" onClick={() => onChangeDecision(d)} disabled={saving}>
+                  {lbl.en}
+                </button>
+              )
+            })}
+          </div>
+          <button className="btn-link" onClick={onCancelChange} style={{ marginTop: 8 }}>Cancel · Annulla</button>
+        </div>
+      ) : (
+        <div className="confirm-actions">
+          <button className="btn-primary confirm-btn" onClick={onConfirm} disabled={saving}>
+            {saving ? 'Saving…' : 'Confirm for Italy · Conferma per l\'Italia'}
+          </button>
+          <button className="btn-link confirm-change-link" onClick={onStartChange} disabled={saving}>
+            Change decision · Cambia decisione
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type CustomsView = 'review' | 'incomplete' | 'preview'
+type CustomsView = 'review' | 'incomplete' | 'preview' | 'confirm-italy'
 
 export default function CustomsPage() {
   const { state, dispatch } = useApp()
@@ -324,12 +614,17 @@ export default function CustomsPage() {
     [entries]
   )
 
+  const completeness = useMemo(() => checkCompleteness(entries, boxes as Box[]), [entries, boxes])
+
+  const activeUseIds = useMemo(
+    () => new Set(completeness.activeUseUnconfirmed.map(e => e.id)),
+    [completeness.activeUseUnconfirmed]
+  )
   const declarable = useMemo(
-    () => keepItaly.filter(e => !e.customs_exclude),
-    [keepItaly]
+    () => keepItaly.filter(e => !e.customs_exclude && !activeUseIds.has(e.id)),
+    [keepItaly, activeUseIds]
   )
 
-  const completeness = useMemo(() => checkCompleteness(entries), [entries])
   const grouped = useMemo(() => groupByCategory(declarable), [declarable])
 
   // Check profile completeness
@@ -423,6 +718,13 @@ export default function CustomsPage() {
                 Mark items as SHIP-ITALY to include them in the customs declaration.
               </p>
             </div>
+          ) : view === 'confirm-italy' ? (
+            <ItalyConfirmationFlow
+              items={completeness.activeUseUnconfirmed}
+              settings={settings}
+              onUpdate={handleEntryUpdate}
+              onBack={() => setView('review')}
+            />
           ) : view === 'incomplete' ? (
             <IncompleteEditor
               items={[...completeness.missingYear, ...completeness.missingValue, ...completeness.missingItalianName]
@@ -456,6 +758,27 @@ export default function CustomsPage() {
                   Esenzione doganale per beni personali usati da oltre 6 mesi.
                 </p>
               </div>
+
+              {/* Active-use unconfirmed banner (spec 016 Part 3) */}
+              {completeness.activeUseUnconfirmed.length > 0 && (
+                <div className="customs-banner customs-banner-active-use" style={{ marginBottom: 12 }}>
+                  <span style={{ fontSize: 20 }}>🏠</span>
+                  <div>
+                    <p>
+                      <strong>{completeness.activeUseUnconfirmed.length} active-use item{completeness.activeUseUnconfirmed.length !== 1 ? 's' : ''} not yet confirmed for Italy</strong>
+                    </p>
+                    <p className="ink-soft" style={{ fontSize: 13 }}>
+                      Items in active use in Colorado are excluded from the declaration until re-confirmed.
+                    </p>
+                    <p className="italic ink-soft" style={{ fontSize: 12, marginTop: 2 }}>
+                      Articoli in uso attivo in Colorado esclusi fino alla conferma.
+                    </p>
+                    <button className="btn-link" style={{ marginTop: 6 }} onClick={() => setView('confirm-italy')}>
+                      Review · Rivedi
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Completeness */}
               <CompletenessBanner

@@ -170,6 +170,22 @@ export default function SettingsPage() {
                   Per-pound share of the moving truck (~1,000 miles). Default: $0.50/lb
                 </p>
               </div>
+              <div>
+                <label className="input-label">Moving rate — $/cu ft · Costo trasloco per piede cubo</label>
+                <input type="number" className="input" step="0.01" min="0"
+                  value={settings.coloradoMoveRatePerCuFt ?? 0}
+                  onChange={e => updateRate('coloradoMoveRatePerCuFt', parseFloat(e.target.value) || 0)}
+                />
+                <p className="settings-hint" style={{ marginTop: 4 }}>Per-cu-ft rate (used if higher than per-lb). Set to 0 to use weight only.</p>
+              </div>
+              <div>
+                <label className="input-label">Flat fee — truck/rental · Costo fisso camion</label>
+                <input type="number" className="input" step="1" min="0"
+                  value={settings.coloradoMoveFlatFee ?? 0}
+                  onChange={e => updateRate('coloradoMoveFlatFee', parseFloat(e.target.value) || 0)}
+                />
+                <p className="settings-hint" style={{ marginTop: 4 }}>Fixed cost component (truck rental, fuel, tolls). Added to the per-unit rate.</p>
+              </div>
               <hr style={{ border: 'none', borderTop: '1px solid var(--paper-dark)', margin: '4px 0' }} />
               <p className="input-label" style={{ fontWeight: 600, marginBottom: -8 }}>
                 Leg 2 — Ocean shipping ({settings.usDestination} → Italy)
