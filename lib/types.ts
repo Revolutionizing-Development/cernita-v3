@@ -411,6 +411,9 @@ export interface CernitaSettings {
   perspectiveSaveSellThreshold: number
   // Decision rules (spec 016 Part 4) — structured filters that suggest decisions
   decisionRules: DecisionRule[]
+  // Colorado move cost estimation (spec 016 Part 7)
+  coloradoMoveRatePerCuFt: number  // per-cu-ft rate for IL→CO ground move
+  coloradoMoveFlatFee: number       // flat fee component (truck rental, etc.)
 }
 
 export const DEFAULT_SETTINGS: CernitaSettings = {
@@ -436,4 +439,6 @@ export const DEFAULT_SETTINGS: CernitaSettings = {
   perspectiveSaveShipThreshold: 0.3,
   perspectiveSaveSellThreshold: 0.7,
   decisionRules: [],
+  coloradoMoveRatePerCuFt: 0,
+  coloradoMoveFlatFee: 0,
 }

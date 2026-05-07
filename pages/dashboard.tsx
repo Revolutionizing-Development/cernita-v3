@@ -5,8 +5,9 @@ import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { useCountUp } from '../lib/useCountUp'
 import {
-  Decision, DECISION_BADGE_CLASS, STORAGE_REQUIREMENT_LABELS,
-  TRIP_STATUS_LABELS, getDecisionLabel,
+  Decision, Box, Entry, DECISION_BADGE_CLASS, STORAGE_REQUIREMENT_LABELS,
+  TRIP_STATUS_LABELS, COLORADO_PLACEMENT_LABELS, ColoradoPlacement,
+  getDecisionLabel,
 } from '../lib/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -54,10 +55,44 @@ export default function DashboardPage() {
   const italyShipCost = italyItems.reduce((s, e) => s + (e.ship_cost ?? 0), 0)
   const italyUnknownW = italyItems.filter(e => e.weight_lb == null).length
 
-  // ── Colorado stop (SELL items with action_phase COLORADO) ───────────────
-  const coloradoItems = entries.filter(e => e.action_phase === 'COLORADO')
-  const coloradoWeight = coloradoItems.filter(e => e.weight_lb != null).reduce((s, e) => s + (e.weight_lb ?? 0), 0)
-  const coloradoStorageCost = coloradoItems.reduce((s, e) => s + (e.storage_cost_total ?? 0), 0)
+  // ── Colorado move — everything going to Colorado ────────────────────────
+  const coloradoMoveItems = entries.filter(e =>
+    e.final_decision === 'SHIP-ITALY' ||
+    e.action_phase === 'COLORADO' ||
+    e.final_decision === 'CONSUME'
+  )
+  const coloradoMoveWeight = coloradoMoveItems.filter(e => e.weight_lb != null).reduce((s, e) => s + (e.weight_lb ?? 0), 0)
+  const coloradoMoveVol = coloradoMoveItems.filter(e => e.volume_cuft != null).reduce((s, e) => s + (e.volume_cuft ?? 0), 0)
+  const coloradoUnknownW = coloradoMoveItems.filter(e => e.weight_lb == null).length
+
+  const coMoveCostWeight = coloradoMoveWeight * settings.movingRatePerLb
+  const coMoveCostVol = coloradoMoveVol * (settings.coloradoMoveRatePerCuFt ?? 0)
+  const coMoveCost = Math.max(coMoveCostWeight, coMoveCostVol) + (settings.coloradoMoveFlatFee ?? 0)
+
+  const coDestinyShipItaly = coloradoMoveItems.filter(e => e.final_decision === 'SHIP-ITALY').length
+  const coDestinySellCO = coloradoMoveItems.filter(e => e.final_decision === 'SELL' && e.action_phase === 'COLORADO').length
+  const coDestinyDonateCO = coloradoMoveItems.filter(e => e.final_decision === 'DONATE' && e.action_phase === 'COLORADO').length
+  const coDestinyConsume = coloradoMoveItems.filter(e => e.final_decision === 'CONSUME').length
+
+  const boxPlacementMap = new Map<number, ColoradoPlacement | null>()
+  for (const b of boxes) {
+    boxPlacementMap.set((b as Box).id, (b as Box).colorado_placement ?? null)
+  }
+  const coPlacementCounts: Record<ColoradoPlacement, { count: number; weight: number }> = {
+    'ACTIVE-USE':    { count: 0, weight: 0 },
+    'HOUSE-STORAGE': { count: 0, weight: 0 },
+    'GARAGE':        { count: 0, weight: 0 },
+  }
+  let coUnplaced = 0
+  for (const e of coloradoMoveItems) {
+    const placement = e.box_id ? boxPlacementMap.get(e.box_id) : null
+    if (placement && coPlacementCounts[placement]) {
+      coPlacementCounts[placement].count++
+      coPlacementCounts[placement].weight += e.weight_lb ?? 0
+    } else {
+      coUnplaced++
+    }
+  }
 
   // ── Action needed ─────────────────────────────────────────────────────────
   const needsHuman   = entries.filter(e => e.final_decision === 'NEEDS-HUMAN').length
@@ -222,27 +257,73 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* ── Colorado stop ── */}
-              {coloradoItems.length > 0 && (
+              {/* ── Colorado move ── */}
+              {coloradoMoveItems.length > 0 && (
                 <div className="dash-section">
                   <h2 className="dash-section-title">
-                    Colorado stop · <em>Sosta in Colorado</em>
-                    <span className={`${DECISION_BADGE_CLASS['SELL']} dash-section-badge`}>{coloradoItems.length}</span>
+                    Colorado move · <em>Trasloco in Colorado</em>
                   </h2>
                   <div className="dash-stat-row">
-                    {coloradoWeight > 0 && (
+                    <div className="dash-stat">
+                      <span className="dash-stat-value serif">{coloradoMoveItems.length}</span>
+                      <span className="dash-stat-label">items{coloradoUnknownW > 0 ? ` (${coloradoUnknownW} unknown wt)` : ''}</span>
+                    </div>
+                    <div className="dash-stat">
+                      <span className="dash-stat-value serif">{fmtLb(coloradoMoveWeight)}</span>
+                      <span className="dash-stat-label">est. weight</span>
+                    </div>
+                    {coloradoMoveVol > 0 && (
                       <div className="dash-stat">
-                        <span className="dash-stat-value serif">{fmtLb(coloradoWeight)}</span>
-                        <span className="dash-stat-label">total weight</span>
-                      </div>
-                    )}
-                    {coloradoStorageCost > 0 && (
-                      <div className="dash-stat">
-                        <span className="dash-stat-value serif">{fmt(coloradoStorageCost)}</span>
-                        <span className="dash-stat-label">est. storage cost</span>
+                        <span className="dash-stat-value serif">{coloradoMoveVol.toFixed(1)}<span className="dash-stat-unit"> cu ft</span></span>
+                        <span className="dash-stat-label">est. volume</span>
                       </div>
                     )}
                   </div>
+                  {(coPlacementCounts['ACTIVE-USE'].count > 0 || coPlacementCounts['HOUSE-STORAGE'].count > 0 || coPlacementCounts['GARAGE'].count > 0) && (
+                    <div className="dash-co-placement">
+                      <p className="dash-co-sublabel">By placement · <em className="italic ink-soft">Per collocazione</em></p>
+                      <div className="dash-co-placement-grid">
+                        {(Object.keys(COLORADO_PLACEMENT_LABELS) as ColoradoPlacement[])
+                          .filter(p => coPlacementCounts[p].count > 0)
+                          .map(p => (
+                            <div key={p} className="dash-co-placement-item">
+                              <span className="dash-co-placement-icon">{COLORADO_PLACEMENT_LABELS[p].icon}</span>
+                              <span className="dash-co-placement-label">{COLORADO_PLACEMENT_LABELS[p].en}</span>
+                              <span className="dash-co-placement-count">{coPlacementCounts[p].count} · {fmtLb(coPlacementCounts[p].weight)}</span>
+                            </div>
+                          ))}
+                        {coUnplaced > 0 && (
+                          <div className="dash-co-placement-item dash-co-placement-unplaced">
+                            <span className="dash-co-placement-icon">◻</span>
+                            <span className="dash-co-placement-label">Unplaced</span>
+                            <span className="dash-co-placement-count">{coUnplaced}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <div className="dash-co-destiny">
+                    <p className="dash-co-sublabel">By ultimate destiny · <em className="italic ink-soft">Per destinazione finale</em></p>
+                    <div className="dash-co-destiny-grid">
+                      {coDestinyShipItaly > 0 && <span className="dash-co-destiny-item">🇮🇹 Ship to Italy: {coDestinyShipItaly}</span>}
+                      {coDestinySellCO > 0 && <span className="dash-co-destiny-item">💰 Sell in CO: {coDestinySellCO}</span>}
+                      {coDestinyDonateCO > 0 && <span className="dash-co-destiny-item">🎁 Donate in CO: {coDestinyDonateCO}</span>}
+                      {coDestinyConsume > 0 && <span className="dash-co-destiny-item">🧴 Consume: {coDestinyConsume}</span>}
+                    </div>
+                  </div>
+                  {coMoveCost > 0 && (
+                    <div className="dash-co-cost">
+                      <div className="dash-cost-block">
+                        <span className="dash-cost-label">Ground move estimate</span>
+                        <span className="dash-cost-value serif">{fmt(coMoveCost)}</span>
+                        <span className="dash-cost-sub">
+                          ${settings.movingRatePerLb}/lb
+                          {(settings.coloradoMoveRatePerCuFt ?? 0) > 0 ? ` · $${settings.coloradoMoveRatePerCuFt}/cu ft` : ''}
+                          {(settings.coloradoMoveFlatFee ?? 0) > 0 ? ` + $${settings.coloradoMoveFlatFee} flat` : ''}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -324,32 +405,32 @@ export default function DashboardPage() {
               )}
 
               {/* ── Total cost summary ── */}
-              {(italyShipCost > 0 || coloradoStorageCost > 0) && (
+              {(italyShipCost > 0 || coMoveCost > 0) && (
                 <div className="dash-section dash-section-costs">
                   <h2 className="dash-section-title">Estimated costs · <em>Costi stimati</em></h2>
                   <p className="settings-hint" style={{ marginBottom: 12 }}>
                     Based on current rates (v{settings.rulesVersion}). Rates updated in Settings.
                   </p>
                   <div className="dash-cost-row">
+                    {coMoveCost > 0 && (
+                      <div className="dash-cost-block">
+                        <span className="dash-cost-label">Ground move (IL→CO)</span>
+                        <span className="dash-cost-value serif">{fmt(coMoveCost)}</span>
+                        <span className="dash-cost-sub">{coloradoMoveItems.length} items · {fmtLb(coloradoMoveWeight)}</span>
+                      </div>
+                    )}
                     {italyShipCost > 0 && (
                       <div className="dash-cost-block">
-                        <span className="dash-cost-label">Ocean shipping</span>
+                        <span className="dash-cost-label">Ocean shipping (CO→IT)</span>
                         <span className="dash-cost-value serif">{fmt(italyShipCost)}</span>
                         <span className="dash-cost-sub">{italyItems.length} items · {fmtLb(italyWeight)}</span>
                       </div>
                     )}
-                    {coloradoStorageCost > 0 && (
-                      <div className="dash-cost-block">
-                        <span className="dash-cost-label">{settings.monthsInStorage}mo storage</span>
-                        <span className="dash-cost-value serif">{fmt(coloradoStorageCost)}</span>
-                        <span className="dash-cost-sub">{coloradoItems.length} items · ${settings.storageRatePerCuFt}/cu ft</span>
-                      </div>
-                    )}
-                    {italyShipCost > 0 && coloradoStorageCost > 0 && (
+                    {(italyShipCost > 0 || coMoveCost > 0) && (
                       <div className="dash-cost-block dash-cost-total">
                         <span className="dash-cost-label">Total estimated</span>
-                        <span className="dash-cost-value serif">{fmt(italyShipCost + coloradoStorageCost)}</span>
-                        <span className="dash-cost-sub">ship + storage</span>
+                        <span className="dash-cost-value serif">{fmt(italyShipCost + coMoveCost)}</span>
+                        <span className="dash-cost-sub">ground + ocean</span>
                       </div>
                     )}
                   </div>
