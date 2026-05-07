@@ -120,7 +120,7 @@ export default function SettingsPage() {
               Illinois → <strong>{settings.usDestination}</strong> → Italy
               <br />
               <em className="ink-soft" style={{ fontSize: 12 }}>
-                Items marked "Keep — US stop" will stay here before or instead of going to Italy.
+                Items move by truck to {settings.usDestination}, live in the house for ~2 years, then ship to Italy by ocean freight.
               </em>
             </p>
             <div style={{ marginTop: 14 }}>
@@ -145,28 +145,27 @@ export default function SettingsPage() {
           </p>
           <div className="card" style={{ marginBottom: 24 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <p className="input-label" style={{ fontWeight: 600, marginBottom: -8 }}>
+                Leg 1 — Ground move (IL → {settings.usDestination})
+              </p>
               <div>
-                <label className="input-label">Storage rate ($/cu ft / month)</label>
+                <label className="input-label">Moving rate — $/lb · Costo trasloco</label>
                 <input
                   type="number"
                   className="input"
                   step="0.01"
                   min="0"
-                  value={settings.storageRatePerCuFt}
-                  onChange={e => updateRate('storageRatePerCuFt', parseFloat(e.target.value) || 0)}
+                  value={settings.movingRatePerLb}
+                  onChange={e => updateRate('movingRatePerLb', parseFloat(e.target.value) || 0)}
                 />
+                <p className="settings-hint" style={{ marginTop: 4 }}>
+                  Per-pound share of the moving truck (~1,000 miles). Default: $0.50/lb
+                </p>
               </div>
-              <div>
-                <label className="input-label">Months in storage · Mesi in deposito</label>
-                <input
-                  type="number"
-                  className="input"
-                  step="1"
-                  min="1"
-                  value={settings.monthsInStorage}
-                  onChange={e => updateRate('monthsInStorage', parseInt(e.target.value) || 1)}
-                />
-              </div>
+              <hr style={{ border: 'none', borderTop: '1px solid var(--paper-dark)', margin: '4px 0' }} />
+              <p className="input-label" style={{ fontWeight: 600, marginBottom: -8 }}>
+                Leg 2 — Ocean shipping ({settings.usDestination} → Italy)
+              </p>
               <div>
                 <label className="input-label">Ocean shipping — $/lb</label>
                 <input
@@ -261,6 +260,77 @@ export default function SettingsPage() {
                   <span className="toggle-thumb" />
                 </span>
               </label>
+            </div>
+          </div>
+
+          {/* ── Perspective thresholds ── */}
+          <h2 className="section-header">
+            Perspective tuning · <em className="italic ink-soft">Regolazione prospettive</em>
+          </h2>
+          <p className="settings-hint" style={{ marginBottom: 12 }}>
+            Two lenses evaluate every item: one focused on replacement cost, the other on shipping cost.
+            When they disagree, the item is flagged for discussion.
+            <br />
+            <em className="italic ink-soft">
+              Due prospettive valutano ogni oggetto: una sul costo di sostituzione, l&apos;altra sul costo di spedizione.
+              Quando discordano, l&apos;oggetto viene segnalato per la discussione.
+            </em>
+          </p>
+          <div className="card" style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <p className="input-label" style={{ fontWeight: 600, marginBottom: -8 }}>Ship perspective (replacement-cost lens)</p>
+              <div>
+                <label className="input-label">Ship if replacement &gt; ship cost × this factor</label>
+                <input
+                  type="number"
+                  className="input"
+                  step="0.1"
+                  min="1"
+                  value={settings.perspectiveShipThreshold}
+                  onChange={e => updateSetting('perspectiveShipThreshold', parseFloat(e.target.value) || 1.5)}
+                />
+                <p className="settings-hint" style={{ marginTop: 4 }}>Default: 1.5 — ship if replacement is 50%+ more than shipping</p>
+              </div>
+              <div>
+                <label className="input-label">Sell if replacement &lt; ship cost × this factor</label>
+                <input
+                  type="number"
+                  className="input"
+                  step="0.1"
+                  min="0"
+                  max="1"
+                  value={settings.perspectiveSellThreshold}
+                  onChange={e => updateSetting('perspectiveSellThreshold', parseFloat(e.target.value) || 0.5)}
+                />
+                <p className="settings-hint" style={{ marginTop: 4 }}>Default: 0.5 — sell if replacement is less than half the shipping cost</p>
+              </div>
+              <hr style={{ border: 'none', borderTop: '1px solid var(--paper-dark)', margin: '4px 0' }} />
+              <p className="input-label" style={{ fontWeight: 600, marginBottom: -8 }}>Save perspective (shipping-cost lens)</p>
+              <div>
+                <label className="input-label">Ship if ship cost &lt; replacement × this factor</label>
+                <input
+                  type="number"
+                  className="input"
+                  step="0.1"
+                  min="0"
+                  max="1"
+                  value={settings.perspectiveSaveShipThreshold}
+                  onChange={e => updateSetting('perspectiveSaveShipThreshold', parseFloat(e.target.value) || 0.3)}
+                />
+                <p className="settings-hint" style={{ marginTop: 4 }}>Default: 0.3 — ship if shipping is less than 30% of replacement</p>
+              </div>
+              <div>
+                <label className="input-label">Sell if ship cost &gt; replacement × this factor</label>
+                <input
+                  type="number"
+                  className="input"
+                  step="0.1"
+                  min="0"
+                  value={settings.perspectiveSaveSellThreshold}
+                  onChange={e => updateSetting('perspectiveSaveSellThreshold', parseFloat(e.target.value) || 0.7)}
+                />
+                <p className="settings-hint" style={{ marginTop: 4 }}>Default: 0.7 — sell if shipping is more than 70% of replacement</p>
+              </div>
             </div>
           </div>
 

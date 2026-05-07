@@ -79,12 +79,16 @@ export const DECISION_LABELS: Record<Decision, { en: string; it: string }> = {
 }
 
 // Returns a decision label, optionally combined with action phase.
+// Handles legacy decision values (KEEP-ITALY, KEEP-US) gracefully for entries
+// that haven't been migrated yet in the database.
 export function getDecisionLabel(
   decision: Decision,
   _usDestination = 'Colorado',
   phase?: ActionPhase | null
 ): { en: string; it: string } {
   const base = DECISION_LABELS[decision]
+    ?? LEGACY_DECISION_LABELS[decision as string]
+    ?? { en: decision, it: decision }
   if (!phase) return base
 
   // Combine decision + phase for SELL, DONATE, CONSUME
@@ -100,6 +104,21 @@ export function getDecisionLabel(
   return base
 }
 
+// Legacy decision labels — for entries in the DB that haven't been migrated yet.
+// These map old decision values to display-friendly labels until the migration runs.
+const LEGACY_DECISION_LABELS: Record<string, { en: string; it: string }> = {
+  'KEEP-ITALY':  { en: 'Ship to Italy',        it: 'Spedire in Italia' },
+  'KEEP-US':     { en: 'Keep in US',            it: 'Tenere negli USA' },
+  'KEEP-TEXAS':  { en: 'Keep in US',            it: 'Tenere negli USA' },
+}
+
+// Map legacy decision values to their modern equivalents for badge styling
+export const LEGACY_DECISION_BADGE: Record<string, string> = {
+  'KEEP-ITALY': 'badge badge-ship-italy',
+  'KEEP-US':    'badge badge-sell',
+  'KEEP-TEXAS': 'badge badge-sell',
+}
+
 export const DECISION_BADGE_CLASS: Record<Decision, string> = {
   'SHIP-ITALY':  'badge badge-ship-italy',
   'SELL':        'badge badge-sell',
@@ -109,6 +128,21 @@ export const DECISION_BADGE_CLASS: Record<Decision, string> = {
   'CONSUME':     'badge badge-consume',
   'NEEDS-HUMAN': 'badge badge-needs-human',
 }
+
+// Override tags (spec 016) — structured reasons for overrides
+export const OVERRIDE_TAGS = [
+  { id: 'voltage',            en: 'Voltage',            it: 'Voltaggio' },
+  { id: 'too-heavy',          en: 'Too heavy',          it: 'Troppo pesante' },
+  { id: 'sentimental',        en: 'Sentimental',        it: 'Sentimentale' },
+  { id: 'cheap-to-replace',   en: 'Cheap to replace',   it: 'Economico da sostituire' },
+  { id: 'expensive-to-ship',  en: 'Expensive to ship',  it: 'Costoso da spedire' },
+  { id: 'fragile',            en: 'Fragile',             it: 'Fragile' },
+  { id: 'daily-use',          en: 'Daily use',           it: 'Uso quotidiano' },
+  { id: 'consumable',         en: 'Consumable',          it: 'Consumabile' },
+  { id: 'other',              en: 'Other',               it: 'Altro' },
+] as const
+
+export type OverrideTagId = typeof OVERRIDE_TAGS[number]['id']
 
 // Colorado box placement (spec 016)
 export type ColoradoPlacement = 'ACTIVE-USE' | 'HOUSE-STORAGE' | 'GARAGE'
@@ -239,10 +273,12 @@ export const DEFAULT_CUSTOMS_PROFILE: CustomsDeclarantProfile = {
 export interface CernitaSettings {
   // Move route
   usDestination: string        // the intermediate US city (e.g. "Colorado Springs")
-  // Storage
+  // Ground move (IL → Colorado) — per-lb share of moving truck
+  movingRatePerLb: number
+  // Storage (legacy — kept for backward compat, not used in new cost model)
   storageRatePerCuFt: number
   monthsInStorage: number
-  // Ocean shipping
+  // Ocean shipping (Colorado → Italy)
   shippingRatePerLb: number
   shippingRatePerCuFt: number
   // Weight thresholds (plastic boxes)
@@ -264,10 +300,20 @@ export interface CernitaSettings {
   rulesVersion: string
   // Customs declarant profile (spec 015)
   customsProfile: CustomsDeclarantProfile
+  // Perspective thresholds (spec 016) — dual-lens evaluation
+  // Ship perspective: ship if replacement > ship_cost * this factor
+  perspectiveShipThreshold: number
+  // Ship perspective: sell if replacement < ship_cost * this factor
+  perspectiveSellThreshold: number
+  // Save perspective: ship if ship_cost < replacement * this factor
+  perspectiveSaveShipThreshold: number
+  // Save perspective: sell if ship_cost > replacement * this factor
+  perspectiveSaveSellThreshold: number
 }
 
 export const DEFAULT_SETTINGS: CernitaSettings = {
   usDestination: 'Colorado Springs',
+  movingRatePerLb: 0.50,
   storageRatePerCuFt: 2.50,
   monthsInStorage: 18,
   shippingRatePerLb: 0.75,
@@ -283,4 +329,8 @@ export const DEFAULT_SETTINGS: CernitaSettings = {
   motionEnabled: true,
   rulesVersion: '1.0.0',
   customsProfile: DEFAULT_CUSTOMS_PROFILE,
+  perspectiveShipThreshold: 1.5,
+  perspectiveSellThreshold: 0.5,
+  perspectiveSaveShipThreshold: 0.3,
+  perspectiveSaveSellThreshold: 0.7,
 }

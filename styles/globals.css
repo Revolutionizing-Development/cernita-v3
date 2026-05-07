@@ -504,6 +504,8 @@ body {
 }
 
 .economics-table tr.net-row td { background: var(--paper); }
+.economics-table tr.savings-positive td { color: var(--olive); }
+.economics-table tr.savings-negative td { color: var(--terracotta); }
 
 /* Confidence pill */
 .confidence-row {
@@ -525,6 +527,155 @@ body {
 .confidence-high   { background: var(--olive-soft);      color: var(--ink); }
 .confidence-medium { background: var(--gold);             color: var(--ink); }
 .confidence-low    { background: var(--terracotta-soft);  color: var(--ink); }
+
+/* Dual perspectives */
+.perspectives-section {
+  border-top: 1px solid var(--paper-dark);
+  padding-top: 14px;
+  margin-bottom: 18px;
+}
+
+.perspectives-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.perspectives-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.perspective-card {
+  background: var(--paper-dark);
+  border-radius: var(--radius);
+  padding: 10px;
+  border-left: 3px solid var(--ink-soft);
+}
+
+.perspective-card.perspective-ship-italy {
+  border-left-color: var(--olive);
+}
+.perspective-card.perspective-sell {
+  border-left-color: var(--terracotta);
+}
+.perspective-card.perspective-neutral {
+  border-left-color: var(--gold);
+}
+
+.perspective-lens {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  margin-bottom: 1px;
+}
+
+.perspective-lens-it {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.perspective-verdict {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.perspective-verdict-ship-italy { color: var(--olive); }
+.perspective-verdict-sell       { color: var(--terracotta); }
+.perspective-verdict-neutral    { color: var(--gold); }
+
+.perspective-reason {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.perspective-reason-it {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+  font-style: italic;
+  margin-top: 3px;
+}
+
+.perspectives-agreement {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.perspectives-agreement.agree {
+  background: var(--olive-soft);
+  color: var(--ink);
+}
+
+.perspectives-agreement.disagree {
+  background: var(--terracotta-soft);
+  color: var(--ink);
+}
+
+.agreement-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.agreement-text {
+  font-weight: 500;
+}
+
+/* Discuss page perspectives */
+.discuss-perspectives {
+  margin-bottom: 14px;
+}
+
+/* Override tags picker */
+.override-tags-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+  margin-top: 6px;
+}
+
+.override-tag-pill {
+  padding: 6px 12px;
+  border: 1.5px solid var(--paper-dark);
+  border-radius: 16px;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.override-tag-pill.active {
+  border-color: var(--terracotta);
+  background: var(--terracotta-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.override-tag-pill:hover:not(.active) {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+}
 
 /* Rationale */
 .rationale-section {

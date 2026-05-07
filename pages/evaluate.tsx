@@ -7,7 +7,8 @@ import SyncIndicator from '../components/SyncIndicator'
 import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import haptic from '../lib/haptic'
-import { Box, Decision, ActionPhase, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, ACTION_PHASE_LABELS } from '../lib/types'
+import { Box, Decision, ActionPhase, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, ACTION_PHASE_LABELS, OVERRIDE_TAGS, OverrideTagId } from '../lib/types'
+import { computePerspectives, shouldAutoNeedsHuman, perspectiveConfidence, DualPerspective } from '../lib/perspectives'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -125,6 +126,7 @@ export default function EvaluatePage() {
   // Override overlay state
   const [overrideDecision, setOverrideDecision] = useState<Decision>('NEEDS-HUMAN')
   const [overridePhase, setOverridePhase] = useState<ActionPhase | null>(null)
+  const [overrideTags, setOverrideTags] = useState<OverrideTagId[]>([])
   const [overrideReason, setOverrideReason] = useState('')
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
 
@@ -265,6 +267,15 @@ export default function EvaluatePage() {
         if (PHASED_DECISIONS.includes(item.final_decision) && !item.action_phase) {
           item.action_phase = 'NOW'
         }
+        // Dual perspective: auto-NEEDS-HUMAN when perspectives disagree
+        const dual = computePerspectives(item.net_cost_ship, item.replacement_cost, settings)
+        if (shouldAutoNeedsHuman(dual) && item.final_decision !== 'NEEDS-HUMAN' && item.final_decision !== 'DISPOSE') {
+          item.final_decision = 'NEEDS-HUMAN'
+          item.confidence = perspectiveConfidence(item.confidence, dual)
+        } else {
+          // Apply perspective-based confidence adjustment
+          item.confidence = perspectiveConfidence(item.confidence, dual)
+        }
         return item
       })
 
@@ -312,7 +323,7 @@ export default function EvaluatePage() {
 
   // ─── Save action ───────────────────────────────────────────────────────────
 
-  async function saveEntry(decision: Decision, reason?: string, phase?: ActionPhase | null) {
+  async function saveEntry(decision: Decision, reason?: string, phase?: ActionPhase | null, tags?: OverrideTagId[]) {
     if (!aiResult) return
     setPhase('saving')
 
@@ -336,6 +347,7 @@ export default function EvaluatePage() {
       italy_confirmed: false,
       user_confirmed: true,
       override_reason: reason ?? null,
+      override_tags: tags && tags.length > 0 ? tags : null,
       estimated_resale_value: aiResult.estimated_resale_value,
       replacement_cost: aiResult.replacement_cost,
       weight_lb: aiResult.weight_lb,
@@ -393,6 +405,7 @@ export default function EvaluatePage() {
       setCurrentItemIndex(nextIdx)
       setOverrideDecision(nextItem.final_decision)
       setOverridePhase(nextItem.action_phase ?? null)
+      setOverrideTags([])
       setOverrideReason('')
       setErrorMsg('')
       setToastMsg(`✓ ${aiResult.item_name} saved · ${nextIdx + 1} of ${aiResults.length}`)
@@ -625,10 +638,12 @@ export default function EvaluatePage() {
               saving={phase === 'saving'}
               errorMsg={errorMsg}
               usDestination={settings.usDestination}
+              settings={settings}
               onConfirm={() => saveEntry(aiResult.final_decision, undefined, aiResult.action_phase)}
               onOverride={() => {
                 setOverrideDecision(aiResult.final_decision)
                 setOverridePhase(aiResult.action_phase ?? null)
+                setOverrideTags([])
                 setPhase('override')
               }}
             />
@@ -640,11 +655,11 @@ export default function EvaluatePage() {
           <OverrideOverlay
             current={overrideDecision}
             currentPhase={overridePhase}
+            tags={overrideTags}
             reason={overrideReason}
             usDestination={settings.usDestination}
             onChange={(d) => {
               setOverrideDecision(d)
-              // Auto-set phase for phased decisions
               if (PHASED_DECISIONS.includes(d) && !overridePhase) {
                 setOverridePhase('NOW')
               } else if (!PHASED_DECISIONS.includes(d)) {
@@ -652,9 +667,10 @@ export default function EvaluatePage() {
               }
             }}
             onPhaseChange={setOverridePhase}
+            onTagsChange={setOverrideTags}
             onReasonChange={setOverrideReason}
             onCancel={() => setPhase('result')}
-            onSave={() => saveEntry(overrideDecision, overrideReason || undefined, overridePhase)}
+            onSave={() => saveEntry(overrideDecision, overrideReason || undefined, overridePhase, overrideTags)}
           />
         )}
 
@@ -817,6 +833,7 @@ function ResultCard({
   saving,
   errorMsg,
   usDestination,
+  settings,
   onConfirm,
   onOverride,
 }: {
@@ -824,6 +841,7 @@ function ResultCard({
   saving: boolean
   errorMsg: string
   usDestination: string
+  settings: import('../lib/types').CernitaSettings
   onConfirm: () => void
   onOverride: () => void
 }) {
@@ -831,6 +849,7 @@ function ResultCard({
   const badgeClass = DECISION_BADGE_CLASS[result.final_decision as Decision] ?? 'badge'
   const showPreservation = result.fragility && result.fragility !== 'none'
   const confidence = result.confidence ?? 'medium'
+  const dual = computePerspectives(result.net_cost_ship, result.replacement_cost, settings)
   const restriction = result.shipping_restriction
 
   return (
@@ -894,6 +913,41 @@ function ResultCard({
           <span className={`confidence-pill confidence-${confidence}`}>{confidence}</span>
           <span className="ink-soft" style={{ fontSize: 12 }}>confidence · fiducia</span>
         </div>
+
+        {/* Dual perspectives */}
+        {dual.hasData && (
+          <div className="perspectives-section">
+            <p className="perspectives-label">Perspectives · Prospettive</p>
+            <div className="perspectives-grid">
+              <div className={`perspective-card perspective-${dual.ship.decision.toLowerCase()}`}>
+                <p className="perspective-lens">{dual.ship.label.en}</p>
+                <p className="perspective-lens-it">{dual.ship.label.it}</p>
+                <span className={`perspective-verdict perspective-verdict-${dual.ship.decision.toLowerCase()}`}>
+                  {dual.ship.decision === 'SHIP-ITALY' ? '📦 Ship' : dual.ship.decision === 'SELL' ? '💰 Sell' : '⚖ Neutral'}
+                </span>
+                <p className="perspective-reason">{dual.ship.reason.en}</p>
+                <p className="perspective-reason-it">{dual.ship.reason.it}</p>
+              </div>
+              <div className={`perspective-card perspective-${dual.save.decision.toLowerCase()}`}>
+                <p className="perspective-lens">{dual.save.label.en}</p>
+                <p className="perspective-lens-it">{dual.save.label.it}</p>
+                <span className={`perspective-verdict perspective-verdict-${dual.save.decision.toLowerCase()}`}>
+                  {dual.save.decision === 'SHIP-ITALY' ? '📦 Ship' : dual.save.decision === 'SELL' ? '💰 Sell' : '⚖ Neutral'}
+                </span>
+                <p className="perspective-reason">{dual.save.reason.en}</p>
+                <p className="perspective-reason-it">{dual.save.reason.it}</p>
+              </div>
+            </div>
+            <div className={`perspectives-agreement ${dual.agree ? 'agree' : 'disagree'}`}>
+              <span className="agreement-icon">{dual.agree ? '✓' : '⚡'}</span>
+              <span className="agreement-text">
+                {dual.agree
+                  ? 'Both perspectives agree · Entrambe le prospettive concordano'
+                  : 'Perspectives disagree — needs discussion · Le prospettive sono discordi — richiede discussione'}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Rationale */}
         {result.recommendation_rationale && (
@@ -979,6 +1033,13 @@ function EconomicsTable({ result }: { result: AiResult }) {
 
   if (!hasAnyEcon) return null
 
+  // net_cost_storage is now "savings vs replacement" — positive = shipping saves money
+  const savings = result.net_cost_storage
+  const savingsLabel = savings != null && savings >= 0
+    ? 'Ship saves'
+    : 'Replace saves'
+  const savingsClass = savings != null && savings >= 0 ? 'savings-positive' : 'savings-negative'
+
   return (
     <div className="economics-section">
       <p className="economics-label">Economics · Costi</p>
@@ -996,28 +1057,28 @@ function EconomicsTable({ result }: { result: AiResult }) {
               <td className="num">{fmt(result.replacement_cost)}</td>
             </tr>
           )}
-          {result.ship_cost != null && (
-            <tr>
-              <td>Ship cost</td>
-              <td className="num">{fmt(result.ship_cost)}</td>
-            </tr>
-          )}
           {result.storage_cost_total != null && (
             <tr>
-              <td>Storage cost</td>
+              <td>Move to CO <Em>truck</Em></td>
               <td className="num">{fmt(result.storage_cost_total)}</td>
+            </tr>
+          )}
+          {result.ship_cost != null && (
+            <tr>
+              <td>Ocean ship <Em>CO→Italy</Em></td>
+              <td className="num">{fmt(result.ship_cost)}</td>
             </tr>
           )}
           {result.net_cost_ship != null && (
             <tr className="net-row">
-              <td><strong>Net if shipped</strong></td>
-              <td className="num"><strong>{fmtNet(result.net_cost_ship)}</strong></td>
+              <td><strong>Total to Italy</strong></td>
+              <td className="num"><strong>{fmt(result.net_cost_ship)}</strong></td>
             </tr>
           )}
-          {result.net_cost_storage != null && (
-            <tr className="net-row">
-              <td><strong>Net if stored</strong></td>
-              <td className="num"><strong>{fmtNet(result.net_cost_storage)}</strong></td>
+          {savings != null && result.replacement_cost != null && (
+            <tr className={`net-row ${savingsClass}`}>
+              <td><strong>{savingsLabel}</strong></td>
+              <td className="num"><strong>{fmt(Math.abs(savings))}</strong></td>
             </tr>
           )}
           {result.weight_lb != null && (
@@ -1041,25 +1102,37 @@ function Em({ children }: { children: React.ReactNode }) {
 function OverrideOverlay({
   current,
   currentPhase,
+  tags,
   reason,
   usDestination,
   onChange,
   onPhaseChange,
+  onTagsChange,
   onReasonChange,
   onCancel,
   onSave,
 }: {
   current: Decision
   currentPhase: ActionPhase | null
+  tags: OverrideTagId[]
   reason: string
   usDestination: string
   onChange: (d: Decision) => void
   onPhaseChange: (p: ActionPhase | null) => void
+  onTagsChange: (tags: OverrideTagId[]) => void
   onReasonChange: (r: string) => void
   onCancel: () => void
   onSave: () => void
 }) {
   const showPhase = PHASED_DECISIONS.includes(current)
+
+  function toggleTag(tagId: OverrideTagId) {
+    if (tags.includes(tagId)) {
+      onTagsChange(tags.filter(t => t !== tagId))
+    } else {
+      onTagsChange([...tags, tagId])
+    }
+  }
 
   return (
     <div className="overlay-backdrop" onClick={e => { if (e.target === e.currentTarget) onCancel() }}>
@@ -1103,13 +1176,28 @@ function OverrideOverlay({
           </>
         )}
 
-        <label className="input-label">Reason (optional) · Motivo</label>
+        {/* Override tags */}
+        <label className="input-label">Why? (select all that apply) · Perché? (seleziona tutto)</label>
+        <div className="override-tags-picker">
+          {OVERRIDE_TAGS.map(tag => (
+            <button
+              key={tag.id}
+              type="button"
+              className={`override-tag-pill${tags.includes(tag.id) ? ' active' : ''}`}
+              onClick={() => toggleTag(tag.id)}
+            >
+              {tag.en} · {tag.it}
+            </button>
+          ))}
+        </div>
+
+        <label className="input-label" style={{ marginTop: 14 }}>Additional notes (optional) · Note aggiuntive</label>
         <textarea
           className="input"
-          style={{ minHeight: 80, resize: 'vertical', marginBottom: 20 }}
+          style={{ minHeight: 60, resize: 'vertical', marginBottom: 20 }}
           value={reason}
           onChange={e => onReasonChange(e.target.value)}
-          placeholder="Why are you overriding? · Perché stai cambiando?"
+          placeholder="Any extra context… · Contesto aggiuntivo…"
         />
 
         <div style={{ display: 'flex', gap: 10 }}>

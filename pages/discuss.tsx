@@ -7,8 +7,9 @@ import { useApp } from '../lib/context'
 import { supabase } from '../lib/supabase'
 import haptic from '../lib/haptic'
 import {
-  Entry, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel,
+  Entry, Decision, DECISION_LABELS, DECISION_BADGE_CLASS, getDecisionLabel, CernitaSettings,
 } from '../lib/types'
+import { computePerspectives, DualPerspective } from '../lib/perspectives'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -26,10 +27,12 @@ const RESOLVE_OPTIONS: Decision[] = [
 function DiscussCard({
   entry,
   usDestination,
+  settings,
   onResolved,
 }: {
   entry: Entry
   usDestination: string
+  settings: CernitaSettings
   onResolved: (entry: Entry) => void
 }) {
   const [resolving, setResolving] = useState(false)
@@ -110,6 +113,41 @@ function DiscussCard({
           <span className="discuss-flag">Fragility: {entry.fragility}</span>
         )}
       </div>
+
+      {/* Dual perspectives */}
+      {(() => {
+        const dual = computePerspectives(entry.net_cost_ship, entry.replacement_cost, settings)
+        if (!dual.hasData) return null
+        return (
+          <div className="discuss-perspectives">
+            <p className="discuss-rationale-label">Perspectives · Prospettive</p>
+            <div className="perspectives-grid">
+              <div className={`perspective-card perspective-${dual.ship.decision.toLowerCase()}`}>
+                <p className="perspective-lens">{dual.ship.label.en}</p>
+                <span className={`perspective-verdict perspective-verdict-${dual.ship.decision.toLowerCase()}`}>
+                  {dual.ship.decision === 'SHIP-ITALY' ? '📦 Ship' : dual.ship.decision === 'SELL' ? '💰 Sell' : '⚖ Neutral'}
+                </span>
+                <p className="perspective-reason">{dual.ship.reason.en}</p>
+              </div>
+              <div className={`perspective-card perspective-${dual.save.decision.toLowerCase()}`}>
+                <p className="perspective-lens">{dual.save.label.en}</p>
+                <span className={`perspective-verdict perspective-verdict-${dual.save.decision.toLowerCase()}`}>
+                  {dual.save.decision === 'SHIP-ITALY' ? '📦 Ship' : dual.save.decision === 'SELL' ? '💰 Sell' : '⚖ Neutral'}
+                </span>
+                <p className="perspective-reason">{dual.save.reason.en}</p>
+              </div>
+            </div>
+            {!dual.agree && (
+              <div className="perspectives-agreement disagree">
+                <span className="agreement-icon">⚡</span>
+                <span className="agreement-text">
+                  Perspectives disagree — this is why it needs discussion
+                </span>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* AI rationale */}
       {entry.recommendation_rationale && (
@@ -248,6 +286,7 @@ export default function DiscussPage() {
                     key={entry.id}
                     entry={entry}
                     usDestination={settings.usDestination}
+                    settings={settings}
                     onResolved={handleResolved}
                   />
                 ))}
