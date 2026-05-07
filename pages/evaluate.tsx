@@ -210,7 +210,8 @@ export default function EvaluatePage() {
       try {
         photoBase64 = await captureFrame(videoRef.current)
         setCapturedBase64(photoBase64)
-      } catch {
+      } catch (e) {
+        console.warn('[eval] captureFrame failed:', e)
         // proceed without photo
       }
       stopCamera()
@@ -221,14 +222,28 @@ export default function EvaluatePage() {
       return
     }
 
+    // Get access token BEFORE entering thinking phase — if auth hangs,
+    // the user stays on camera view (not stuck in thinking overlay)
+    let accessToken: string | undefined
+    try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      accessToken = currentSession?.access_token ?? undefined
+    } catch (e) {
+      console.warn('[eval] getSession failed, proceeding without token:', e)
+    }
+
     setPhase('thinking')
     abortRef.current = new AbortController()
 
-    try {
-      // Get the current access token to pass to the API route
-      const { data: { session: currentSession } } = await supabase.auth.getSession()
-      const accessToken = currentSession?.access_token
+    // Auto-timeout: if the fetch hangs beyond 90 seconds, abort and recover.
+    // Vercel hobby has a 10s limit; Pro has 60s. 90s covers both + network overhead.
+    const timeoutId = setTimeout(() => {
+      console.warn('[eval] fetch timeout after 90s — aborting')
+      abortRef.current?.abort()
+    }, 90_000)
 
+    try {
+      console.log('[eval] starting fetch to /api/anthropic')
       const res = await fetch('/api/anthropic', {
         method: 'POST',
         headers: {
@@ -242,6 +257,9 @@ export default function EvaluatePage() {
         }),
         signal: abortRef.current.signal,
       })
+
+      clearTimeout(timeoutId)
+      console.log('[eval] fetch completed, status:', res.status)
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -258,7 +276,7 @@ export default function EvaluatePage() {
         }
         // Sanitize: guard against unexpected decision values
         if (!VALID_DECISIONS.includes(item.final_decision)) {
-          console.warn('Unexpected final_decision from AI:', item.final_decision)
+          console.warn('[eval] Unexpected final_decision from AI:', item.final_decision)
           item.final_decision = 'NEEDS-HUMAN'
           item.confidence = 'low'
         }
@@ -283,6 +301,7 @@ export default function EvaluatePage() {
         throw new Error('AI returned no items')
       }
 
+      console.log('[eval] parsed', items.length, 'item(s)')
       setAiResults(items)
       setCurrentItemIndex(0)
       setSavedCount(0)
@@ -290,8 +309,15 @@ export default function EvaluatePage() {
       setOverridePhase(items[0].action_phase ?? null)
       setPhase('result')
     } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') return // user cancelled
-      console.error('Evaluate error:', err)
+      clearTimeout(timeoutId)
+      if (err instanceof Error && err.name === 'AbortError') {
+        // User cancelled OR 90s timeout fired
+        console.log('[eval] aborted (user cancel or timeout)')
+        // If still in thinking phase, recover to camera
+        setPhase(cameraBlocked ? 'text' : 'camera')
+        return
+      }
+      console.error('[eval] error:', err)
 
       let msg = 'AI unavailable — please try again · Riprovare.'
       if (err instanceof Error) {
@@ -299,6 +325,8 @@ export default function EvaluatePage() {
           msg = 'Session expired — please sign out and back in.'
         } else if (err.message.startsWith('API_5')) {
           msg = `Server error — check Vercel logs. (${err.message})`
+        } else if (err.message.includes('fetch')) {
+          msg = 'Network error — check your connection · Controlla la connessione.'
         }
       }
 
@@ -313,6 +341,7 @@ export default function EvaluatePage() {
   }
 
   function handleCancel() {
+    console.log('[eval] handleCancel — returning to camera')
     abortRef.current?.abort()
     setCapturedBase64(null)
     setAiResults([])
@@ -325,6 +354,7 @@ export default function EvaluatePage() {
 
   async function saveEntry(decision: Decision, reason?: string, phase?: ActionPhase | null, tags?: OverrideTagId[]) {
     if (!aiResult) return
+    console.log('[eval] saveEntry:', aiResult.item_name, '→', decision)
     setPhase('saving')
 
     // Determine action_phase: use explicit phase, or AI's suggestion for phased decisions
@@ -385,12 +415,13 @@ export default function EvaluatePage() {
       .single()
 
     if (error) {
-      console.error('Save error:', error)
+      console.error('[eval] save error:', error.message, error.details, error.code)
       setPhase('result')
       setErrorMsg('Failed to save — please try again · Salvataggio fallito.')
       return
     }
 
+    console.log('[eval] saved entry id:', data?.id)
     // Optimistic local update (Realtime will also fire)
     if (data) dispatch({ type: 'UPSERT_ENTRY', entry: data })
 
@@ -469,6 +500,7 @@ export default function EvaluatePage() {
   // ─── Reset to camera ──────────────────────────────────────────────────────
 
   function resetToCamera() {
+    console.log('[eval] resetToCamera')
     setAiResults([])
     setCurrentItemIndex(0)
     setSavedCount(0)
@@ -646,6 +678,7 @@ export default function EvaluatePage() {
                 setOverrideTags([])
                 setPhase('override')
               }}
+              onCancel={handleCancel}
             />
           </>
         )}
@@ -836,6 +869,7 @@ function ResultCard({
   settings,
   onConfirm,
   onOverride,
+  onCancel,
 }: {
   result: AiResult
   saving: boolean
@@ -844,6 +878,7 @@ function ResultCard({
   settings: import('../lib/types').CernitaSettings
   onConfirm: () => void
   onOverride: () => void
+  onCancel: () => void
 }) {
   const label = getDecisionLabel(result.final_decision as Decision, usDestination, result.action_phase)
   const badgeClass = DECISION_BADGE_CLASS[result.final_decision as Decision] ?? 'badge'
@@ -1012,6 +1047,14 @@ function ResultCard({
             style={{ marginTop: 10, width: '100%' }}
           >
             Override decision · Cambia decisione
+          </button>
+          <button
+            className="btn-link"
+            onClick={onCancel}
+            disabled={saving}
+            style={{ marginTop: 8, width: '100%' }}
+          >
+            ← Back to camera · Torna alla fotocamera
           </button>
         </div>
       </div>
