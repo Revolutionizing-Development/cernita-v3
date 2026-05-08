@@ -10,6 +10,8 @@ import haptic from '../lib/haptic'
 import { Box, Decision, ActionPhase, DecisionRule, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, ACTION_PHASE_LABELS, OVERRIDE_TAGS, OverrideTagId } from '../lib/types'
 import { computePerspectives, shouldAutoNeedsHuman, perspectiveConfidence, DualPerspective } from '../lib/perspectives'
 import { findMatchingRule, ruleDisagreesWithAi, formatRuleSummary } from '../lib/rules'
+import ChatSheet from '../components/ChatSheet'
+import { Entry } from '../lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -130,6 +132,10 @@ export default function EvaluatePage() {
   const [overrideTags, setOverrideTags] = useState<OverrideTagId[]>([])
   const [overrideReason, setOverrideReason] = useState('')
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
+
+  // Chat dialog state (spec 018)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatEntry, setChatEntry] = useState<Entry | null>(null)
 
   // Post-save box prompt state (single-item only)
   const [savedEntryId, setSavedEntryId] = useState<number | null>(null)
@@ -424,7 +430,11 @@ export default function EvaluatePage() {
 
     console.log('[eval] saved entry id:', data?.id)
     // Optimistic local update (Realtime will also fire)
-    if (data) dispatch({ type: 'UPSERT_ENTRY', entry: data })
+    if (data) {
+      dispatch({ type: 'UPSERT_ENTRY', entry: data })
+      // Store for chat dialog (spec 018)
+      setChatEntry(data as Entry)
+    }
 
     haptic.confirm()
     const newSavedCount = savedCount + 1
@@ -833,8 +843,32 @@ export default function EvaluatePage() {
                   </div>
                 )
               })()}
+
+              {/* Discuss with AI button (AC-1) — single item only */}
+              {savedEntryId && chatEntry && (
+                <button
+                  className="btn-link"
+                  style={{ marginTop: 14, width: '100%', textAlign: 'center' }}
+                  onClick={() => setChatOpen(true)}
+                >
+                  Discuss with AI · Discuti con AI
+                </button>
+              )}
             </div>
           </div>
+        )}
+
+        {/* Chat sheet (spec 018) */}
+        {chatOpen && chatEntry && (
+          <ChatSheet
+            entry={chatEntry}
+            settings={settings as unknown as Record<string, unknown>}
+            onClose={() => setChatOpen(false)}
+            onEntryUpdated={(updated) => {
+              dispatch({ type: 'UPSERT_ENTRY', entry: updated })
+              setChatEntry(updated)
+            }}
+          />
         )}
 
         <Nav />

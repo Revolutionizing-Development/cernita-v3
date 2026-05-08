@@ -259,6 +259,10 @@ function setupRealtime(dispatch: React.Dispatch<Action>) {
         dispatch({ type: 'DELETE_LOCATION', id: (payload.old as { id: number }).id })
       }
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'cernita_chat_messages' }, () => {
+      // Chat messages are handled by per-component subscriptions in ChatSheet
+      // This channel ensures the Realtime connection covers the table for RLS
+    })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'cernita_trips' }, (payload) => {
       if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
         dispatch({ type: 'UPSERT_TRIP', trip: payload.new as Trip })

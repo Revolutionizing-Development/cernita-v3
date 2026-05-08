@@ -219,6 +219,27 @@ export interface Trip {
   created_at: string
 }
 
+// ─── Chat messages (spec 018) ─────────────────────────────────────────────
+
+export interface ChatMessage {
+  id: number
+  entry_id: number
+  role: 'user' | 'assistant'
+  content: string
+  metadata: ChatMessageMetadata
+  created_at: string
+  created_by: string | null
+}
+
+export interface ChatMessageMetadata {
+  updated_recommendation?: {
+    decision: Decision
+    action_phase?: ActionPhase | null
+    rationale?: string
+    rationale_it?: string
+  }
+}
+
 // ─── Customs types (spec 015) ─────────────────────────────────────────────
 
 export type CustomsCategory =

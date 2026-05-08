@@ -9,6 +9,7 @@ import { Entry, Box, Location, Decision, ActionPhase, ACTION_PHASE_LABELS, DECIS
 import { exportCSV } from '../lib/exportCsv'
 import { recomputeCosts, isOutdated } from '../lib/costs'
 import haptic from '../lib/haptic'
+import ChatSheet from '../components/ChatSheet'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -417,6 +418,7 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
   const outdated = isOutdated(entry, settings)
   const [showOverride, setShowOverride] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
+  const [showChat, setShowChat] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -909,6 +911,15 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
             </button>
           )}
 
+          {/* ── Discuss with AI (AC-2) ── */}
+          <button
+            className="btn-link"
+            style={{ width: '100%', marginTop: 12, textAlign: 'center' }}
+            onClick={() => setShowChat(true)}
+          >
+            Discuss with AI · Discuti con AI
+          </button>
+
           {/* ── Delete ── */}
           {showDelete ? (
             <div className="delete-confirm">
@@ -938,6 +949,18 @@ function DetailOverlay({ entry, settings, boxes, locations, currentUser, onClose
           )}
 
         </div>
+
+        {/* Chat sheet (spec 018) */}
+        {showChat && (
+          <ChatSheet
+            entry={entry}
+            settings={settings as unknown as Record<string, unknown>}
+            onClose={() => setShowChat(false)}
+            onEntryUpdated={(updated) => {
+              onSaved(updated as Entry)
+            }}
+          />
+        )}
       </div>
     </div>
   )
