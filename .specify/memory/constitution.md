@@ -2,7 +2,7 @@
 
 > *La cernita.* The sorting. What comes, what stays, what goes.
 
-Version 1.6 · drafted April 27, 2026 · revised May 7, 2026
+Version 1.7 · drafted April 27, 2026 · revised May 7, 2026
 
 ---
 
@@ -224,6 +224,7 @@ If a future change requires violating a principle here, the right move is to **p
 
 ## Amendment log
 
+- **v1.7** (May 7, 2026) — Documentary update. Spec 016 (phased item flow) is now fully implemented across 5 builds: revised decision model (SHIP-ITALY replaces KEEP-ITALY; KEEP-US removed; CONSUME added), action phases (NOW/COLORADO), Colorado box placement (ACTIVE-USE/HOUSE-STORAGE/GARAGE), active-use re-evaluation gate, structured decision rules engine, dual-perspective evaluation, override tags with pattern detection, Colorado move cost estimation, and first-time onboarding walkthrough with contextual help. The decision space is now 7 decisions × 2 phases × 9 override tags. Spec 015 (Italian customs) and spec 018 (evaluation chat, draft) also complete. No principle changes — this is a record of the system's maturity.
 - **v1.6** (May 7, 2026) — Added Principle 14: security is verified before every release. Mandates that spec 017 security requirements are a pre-release gate, not a one-time audit. Every build must verify type safety, auth coverage, dependency security, secret isolation, and security headers. New attack surfaces trigger OWASP mapping review. Risk register must be maintained — "we didn't think about it" is the only unacceptable answer. Also updates move route from "Lubbock, Texas" to "Colorado Springs, Colorado" in Purpose section.
 - **v1.5** (May 3, 2026) — Principle 3 rewritten from "data lives with the user" to "data belongs to the user". Separates data sovereignty (real value: portable, exportable, deletable) from user-managed infrastructure (implementation detail that harmed the non-technical partner). Backend now manages database connection and API keys server-side; authentication is a normal login screen. Implements amendment proposal 002.
 - **v1.4** (April 28, 2026) — Added Principle 13: preservation is part of the math. Items deteriorate in storage and transit; honest decisions account for that survival probability. The AI flags risk in the rationale, surfaces required packing precautions, and lowers confidence when survival is in doubt. The user retains final authority. Implements amendment proposal 001.
