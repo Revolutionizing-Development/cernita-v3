@@ -152,26 +152,43 @@ export default function EvaluatePage() {
   // ─── Camera management ─────────────────────────────────────────────────────
 
   const startCamera = useCallback(async (facing: 'environment' | 'user' = 'environment') => {
+    // Always release any existing stream before requesting a new one.
+    // Mobile browsers may not grant a second camera handle if the first
+    // is still holding the hardware.
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraBlocked(true)
       setPhase('text')
       return
     }
+
+    async function attachStream(stream: MediaStream) {
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        // Explicit play() — autoPlay alone can fail after unmount/remount
+        // on some mobile browsers.
+        try { await videoRef.current.play() } catch { /* already playing */ }
+      }
+    }
+
     try {
       // Try exact facing mode first (hard requirement — no silent fallback to selfie)
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { exact: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
       })
-      streamRef.current = stream
-      if (videoRef.current) videoRef.current.srcObject = stream
+      await attachStream(stream)
     } catch {
       try {
         // Device may not support exact constraint — try as a preference
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
         })
-        streamRef.current = stream
-        if (videoRef.current) videoRef.current.srcObject = stream
+        await attachStream(stream)
       } catch {
         setCameraBlocked(true)
         setPhase('text')
@@ -212,7 +229,10 @@ export default function EvaluatePage() {
     setErrorMsg('')
     let photoBase64: string | null = null
 
-    // Capture frame from camera
+    // Capture frame from camera — but keep stream running.
+    // We only stop the camera once we're sure we'll proceed to thinking
+    // phase. Stopping early leaves a black preview if getSession() hangs
+    // or if we bail on the validation check below.
     if (phase === 'camera' && videoRef.current && streamRef.current) {
       try {
         photoBase64 = await captureFrame(videoRef.current)
@@ -221,16 +241,15 @@ export default function EvaluatePage() {
         console.warn('[eval] captureFrame failed:', e)
         // proceed without photo
       }
-      stopCamera()
     }
 
     if (!photoBase64 && !description.trim()) {
       setErrorMsg('Describe the item to continue · Descrivi l\'oggetto per continuare.')
-      return
+      return  // Camera still running — user can try again
     }
 
     // Get access token BEFORE entering thinking phase — if auth hangs,
-    // the user stays on camera view (not stuck in thinking overlay)
+    // the user stays on camera view with a live preview (not a black screen).
     let accessToken: string | undefined
     try {
       const { data: { session: currentSession } } = await supabase.auth.getSession()
@@ -239,6 +258,8 @@ export default function EvaluatePage() {
       console.warn('[eval] getSession failed, proceeding without token:', e)
     }
 
+    // NOW stop camera — we're committed to proceeding
+    stopCamera()
     setPhase('thinking')
     abortRef.current = new AbortController()
 
@@ -522,6 +543,8 @@ export default function EvaluatePage() {
     setPackBoxId('')
     setPacking(false)
     setToastMsg('')
+    setChatOpen(false)
+    setChatEntry(null)
     setPhase(cameraBlocked ? 'text' : 'camera')
   }
 
