@@ -709,6 +709,7 @@ export default function EvaluatePage() {
                   errorMsg={errorMsg}
                   usDestination={settings.usDestination}
                   settings={settings}
+                  photoBase64={capturedBase64}
                   matchedRule={ruleConflict ? matchedRule : null}
                   onConfirm={() => saveEntry(aiResult.final_decision, undefined, aiResult.action_phase)}
                   onAcceptRule={ruleConflict ? () => saveEntry(matchedRule.defaultDecision, `Rule: ${matchedRule.name}`, matchedRule.defaultPhase) : undefined}
@@ -717,6 +718,59 @@ export default function EvaluatePage() {
                     setOverridePhase(aiResult.action_phase ?? null)
                     setOverrideTags([])
                     setPhase('override')
+                  }}
+                  onChat={() => {
+                    // Build a pseudo-entry from AiResult for the chat
+                    const pseudoEntry: Entry = {
+                      id: 0,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                      user_name: user?.user_metadata?.display_name ?? user?.email?.split('@')[0] ?? 'unknown',
+                      item_name: aiResult.item_name,
+                      item_name_it: aiResult.item_name_it,
+                      item_model: aiResult.item_model,
+                      final_decision: aiResult.final_decision,
+                      user_confirmed: false,
+                      override_reason: null,
+                      estimated_resale_value: aiResult.estimated_resale_value,
+                      replacement_cost: aiResult.replacement_cost,
+                      weight_lb: aiResult.weight_lb,
+                      volume_cuft: aiResult.volume_cuft,
+                      storage_cost_total: aiResult.storage_cost_total,
+                      ship_cost: aiResult.ship_cost,
+                      carry_bag_cost: null,
+                      net_cost_ship: aiResult.net_cost_ship,
+                      net_cost_storage: aiResult.net_cost_storage,
+                      recommendation_rationale: aiResult.recommendation_rationale,
+                      recommendation_rationale_it: aiResult.recommendation_rationale_it,
+                      confidence: aiResult.confidence ?? 'medium',
+                      rules_version: null,
+                      rules_snapshot: null,
+                      fragility: aiResult.fragility ?? null,
+                      survival_risk: aiResult.survival_risk,
+                      survival_risk_it: aiResult.survival_risk_it,
+                      packing_notes: aiResult.packing_notes,
+                      packing_notes_it: aiResult.packing_notes_it,
+                      oversized: aiResult.oversized ?? null,
+                      voltage_incompatible: aiResult.voltage_incompatible ?? null,
+                      photo_data: capturedBase64,
+                      bin_id: null,
+                      box_id: null,
+                      current_location_id: null,
+                      shipping_restriction: aiResult.shipping_restriction ?? null,
+                      shipping_restriction_note: aiResult.shipping_restriction_note ?? null,
+                      shipping_restriction_note_it: aiResult.shipping_restriction_note_it ?? null,
+                      action_phase: aiResult.action_phase ?? null,
+                      override_tags: null,
+                      italy_confirmed: false,
+                      acquisition_year: null,
+                      customs_eligible: null,
+                      customs_category: null,
+                      customs_notes: null,
+                      customs_exclude: null,
+                    }
+                    setChatEntry(pseudoEntry)
+                    setChatOpen(true)
                   }}
                   onCancel={handleCancel}
                 />
@@ -933,10 +987,12 @@ function ResultCard({
   errorMsg,
   usDestination,
   settings,
+  photoBase64,
   matchedRule,
   onConfirm,
   onAcceptRule,
   onOverride,
+  onChat,
   onCancel,
 }: {
   result: AiResult
@@ -944,10 +1000,12 @@ function ResultCard({
   errorMsg: string
   usDestination: string
   settings: import('../lib/types').CernitaSettings
+  photoBase64: string | null
   matchedRule: DecisionRule | null
   onConfirm: () => void
   onAcceptRule?: () => void
   onOverride: () => void
+  onChat: () => void
   onCancel: () => void
 }) {
   const label = getDecisionLabel(result.final_decision as Decision, usDestination, result.action_phase)
@@ -1151,14 +1209,24 @@ function ResultCard({
           >
             {saving ? 'Saving… · Salvataggio…' : 'Confirm · Conferma'}
           </button>
-          <button
-            className="btn-secondary"
-            onClick={onOverride}
-            disabled={saving}
-            style={{ marginTop: 10, width: '100%' }}
-          >
-            Override decision · Cambia decisione
-          </button>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button
+              className="btn-secondary"
+              onClick={onOverride}
+              disabled={saving}
+              style={{ flex: 1 }}
+            >
+              Override · Cambia
+            </button>
+            <button
+              className="btn-secondary chat-btn-result"
+              onClick={onChat}
+              disabled={saving}
+              style={{ flex: 1 }}
+            >
+              Discuss · Discuti
+            </button>
+          </div>
           <button
             className="btn-link"
             onClick={onCancel}

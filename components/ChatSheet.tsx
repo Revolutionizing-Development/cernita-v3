@@ -45,8 +45,15 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
 
   const usDestination = (settings as { usDestination?: string }).usDestination ?? 'Colorado Springs'
 
-  // ── Load existing messages on mount (AC-6) ─────────────────────────────
+  // entry.id === 0 means pre-save chat (from result card, not yet in DB)
+  const isSaved = entry.id !== 0
+
+  // ── Load existing messages on mount (AC-6) — only for saved entries ────
   useEffect(() => {
+    if (!isSaved) {
+      setLoadingHistory(false)
+      return
+    }
     async function loadMessages() {
       const { data, error: err } = await supabase
         .from('cernita_chat_messages')
@@ -65,10 +72,11 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
       setLoadingHistory(false)
     }
     loadMessages()
-  }, [entry.id])
+  }, [entry.id, isSaved])
 
   // ── Realtime subscription for other user's messages (AC-6) ─────────────
   useEffect(() => {
+    if (!isSaved) return  // No DB persistence for pre-save chats
     const channel = supabase
       .channel(`chat-${entry.id}`)
       .on('postgres_changes', {
@@ -92,7 +100,7 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
       .subscribe()
 
     return () => { channel.unsubscribe() }
-  }, [entry.id])
+  }, [entry.id, isSaved])
 
   // ── Auto-scroll to bottom ─────────────────────────────────────────────
   useEffect(() => {
@@ -129,28 +137,29 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
     const userMsg: LocalMessage = { id: tempUserId, role: 'user', content: text }
     setMessages(prev => [...prev, userMsg])
 
-    // Save user message to Supabase
+    // Get access token + persist user message to Supabase (saved entries only)
     let accessToken: string | undefined
     try {
       const { data: { session } } = await supabase.auth.getSession()
       accessToken = session?.access_token ?? undefined
 
-      // Persist user message
-      const { data: savedMsg } = await supabase
-        .from('cernita_chat_messages')
-        .insert({
-          entry_id: entry.id,
-          role: 'user',
-          content: text,
-          created_by: session?.user?.id ?? null,
-        })
-        .select()
-        .single()
+      if (isSaved) {
+        const { data: savedMsg } = await supabase
+          .from('cernita_chat_messages')
+          .insert({
+            entry_id: entry.id,
+            role: 'user',
+            content: text,
+            created_by: session?.user?.id ?? null,
+          })
+          .select()
+          .single()
 
-      if (savedMsg) {
-        setMessages(prev => prev.map(m =>
-          m.id === tempUserId ? { ...m, id: savedMsg.id } : m
-        ))
+        if (savedMsg) {
+          setMessages(prev => prev.map(m =>
+            m.id === tempUserId ? { ...m, id: savedMsg.id } : m
+          ))
+        }
       }
     } catch (e) {
       console.warn('[chat] Failed to save user message:', e)
@@ -248,27 +257,29 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
                   : m
               ))
 
-              // Save AI message to Supabase
-              try {
-                const { data: savedAiMsg } = await supabase
-                  .from('cernita_chat_messages')
-                  .insert({
-                    entry_id: entry.id,
-                    role: 'assistant',
-                    content: cleanText,
-                    metadata: finalMetadata,
-                    created_by: null,
-                  })
-                  .select()
-                  .single()
+              // Save AI message to Supabase (saved entries only)
+              if (isSaved) {
+                try {
+                  const { data: savedAiMsg } = await supabase
+                    .from('cernita_chat_messages')
+                    .insert({
+                      entry_id: entry.id,
+                      role: 'assistant',
+                      content: cleanText,
+                      metadata: finalMetadata,
+                      created_by: null,
+                    })
+                    .select()
+                    .single()
 
-                if (savedAiMsg) {
-                  setMessages(prev => prev.map(m =>
-                    m.id === tempAiId ? { ...m, id: savedAiMsg.id } : m
-                  ))
+                  if (savedAiMsg) {
+                    setMessages(prev => prev.map(m =>
+                      m.id === tempAiId ? { ...m, id: savedAiMsg.id } : m
+                    ))
+                  }
+                } catch (e) {
+                  console.warn('[chat] Failed to save AI message:', e)
                 }
-              } catch (e) {
-                console.warn('[chat] Failed to save AI message:', e)
               }
             }
           } catch {

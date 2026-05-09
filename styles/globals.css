@@ -5167,3 +5167,15 @@ body {
 .motion-enabled .chat-send-btn:active:not(:disabled) {
   transition: transform 0.1s ease;
 }
+
+/* ── Chat button on result card ────────────────────────────────────────── */
+
+.chat-btn-result {
+  border-color: var(--olive);
+  color: var(--olive);
+}
+
+.chat-btn-result:active {
+  background: var(--olive);
+  color: #fff;
+}
