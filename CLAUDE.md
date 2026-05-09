@@ -70,12 +70,12 @@ Read `.specify/memory/constitution.md` before any implementation work. It contai
 - 015-italian-customs — declarant profile in Settings, customs review at `/customs` with category grouping (9 Italian customs categories), completeness checks, active-use confirmation flow, EUR conversion, printable dichiarazione sostitutiva + elenco beni
 - 016-item-flow (5 builds) — revised decision model (SHIP-ITALY, CONSUME, action phases), Colorado box placement, active-use re-evaluation gate, structured rules engine with suggestions, dual-perspective evaluation, override tags with pattern detection, Colorado move cost estimation (max(weight, volume) + flat fee), first-time onboarding walkthrough, Settings help accordion, contextual info icons, first-use hints
 - 017-security-safety — threat model, 28 security requirements (SEC-AUTH/DATA/API/AI/HDR/DEP), OWASP Top 10 mapping, security headers, risk register
-- 018-evaluation-chat — draft spec (in-evaluation AI chat dialog); not yet implemented
+- 018-evaluation-chat — in-evaluation AI chat dialog, SSE streaming, chat messages table, bottom-sheet UI
+- 019-dashboard — landing page with count-up stats, decision breakdown bar, action alerts, Colorado move section, cost summary
+- 020-multi-item-evaluation — AI detects multiple items per photo, stepper UI, per-item confirmation, batch advancement
+- 021-oversized-destination-enforcement — oversized detection + box assignment blocking, destination-matched packing, non-packable items
 
 **Shipped without formal specs (needs specs written — P10 violation):**
-- Dashboard / overview — landing page with count-up stats, decision breakdown bar, action alerts, Colorado move section with placement/destiny breakdown, cost summary (ground + ocean)
-- Oversized items — AI flags items too large for 27-gal box; `◱` badge; box assignment blocked; migration 011
-- Destination enforcement — SELL/DONATE/DISPOSE blocked from boxes; SHIP-ITALY → only SHIP-ITALY boxes; GIVE-FAMILY → suitcases only
 - Box manifests — printable per-box packing list at `/manifest/[id]`
 - Inventory PDF export — full inventory with photos at `/export/inventory`, grouped by decision
 - Italian customs distinta — D.P.R. 43/1973 declaration at `/distinta`, SHIP-ITALY items only, bilingual (legacy, superseded by `/customs`)
@@ -92,10 +92,9 @@ Read `.specify/memory/constitution.md` before any implementation work. It contai
 - Data deletion flow — Settings → "Delete all my data" with two-step confirmation. Deletes entries, boxes, trips, locations from Supabase, clears localStorage, signs out. Constitution P3 compliance.
 
 **Outstanding (not yet built):**
-- Evaluation chat dialog (spec 018) — in-evaluation AI conversation, SSE streaming, chat messages table
 - Discuss tab: comment thread — per-user positions and back-and-forth comments between both users (current resolve workflow is functional but one-sided)
 - Moving company / insurance manifest formats — Constitution P12 requires format-matched outputs for actual carrier and insurer
-- 17 retroactive specs for shipped features — required by Constitution P10
+- 14 retroactive specs for remaining shipped features — required by Constitution P10
 
 ## Design system
 
