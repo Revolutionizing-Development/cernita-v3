@@ -10,6 +10,8 @@ import haptic from '../lib/haptic'
 import { Box, Decision, ActionPhase, DecisionRule, DECISION_LABELS, DECISION_BADGE_CLASS, SUITCASE_CLASS_LABELS, getDecisionLabel, ACTION_PHASE_LABELS, OVERRIDE_TAGS, OverrideTagId } from '../lib/types'
 import { computePerspectives, shouldAutoNeedsHuman, perspectiveConfidence, DualPerspective } from '../lib/perspectives'
 import { findMatchingRule, ruleDisagreesWithAi, formatRuleSummary } from '../lib/rules'
+import ChatSheet from '../components/ChatSheet'
+import { Entry } from '../lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -131,6 +133,10 @@ export default function EvaluatePage() {
   const [overrideReason, setOverrideReason] = useState('')
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
 
+  // Chat dialog state (spec 018)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatEntry, setChatEntry] = useState<Entry | null>(null)
+
   // Post-save box prompt state (single-item only)
   const [savedEntryId, setSavedEntryId] = useState<number | null>(null)
   const [savedItemName, setSavedItemName] = useState('')
@@ -146,26 +152,43 @@ export default function EvaluatePage() {
   // ─── Camera management ─────────────────────────────────────────────────────
 
   const startCamera = useCallback(async (facing: 'environment' | 'user' = 'environment') => {
+    // Always release any existing stream before requesting a new one.
+    // Mobile browsers may not grant a second camera handle if the first
+    // is still holding the hardware.
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
+
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraBlocked(true)
       setPhase('text')
       return
     }
+
+    async function attachStream(stream: MediaStream) {
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        // Explicit play() — autoPlay alone can fail after unmount/remount
+        // on some mobile browsers.
+        try { await videoRef.current.play() } catch { /* already playing */ }
+      }
+    }
+
     try {
       // Try exact facing mode first (hard requirement — no silent fallback to selfie)
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { exact: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
       })
-      streamRef.current = stream
-      if (videoRef.current) videoRef.current.srcObject = stream
+      await attachStream(stream)
     } catch {
       try {
         // Device may not support exact constraint — try as a preference
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
         })
-        streamRef.current = stream
-        if (videoRef.current) videoRef.current.srcObject = stream
+        await attachStream(stream)
       } catch {
         setCameraBlocked(true)
         setPhase('text')
@@ -206,7 +229,10 @@ export default function EvaluatePage() {
     setErrorMsg('')
     let photoBase64: string | null = null
 
-    // Capture frame from camera
+    // Capture frame from camera — but keep stream running.
+    // We only stop the camera once we're sure we'll proceed to thinking
+    // phase. Stopping early leaves a black preview if getSession() hangs
+    // or if we bail on the validation check below.
     if (phase === 'camera' && videoRef.current && streamRef.current) {
       try {
         photoBase64 = await captureFrame(videoRef.current)
@@ -215,16 +241,15 @@ export default function EvaluatePage() {
         console.warn('[eval] captureFrame failed:', e)
         // proceed without photo
       }
-      stopCamera()
     }
 
     if (!photoBase64 && !description.trim()) {
       setErrorMsg('Describe the item to continue · Descrivi l\'oggetto per continuare.')
-      return
+      return  // Camera still running — user can try again
     }
 
     // Get access token BEFORE entering thinking phase — if auth hangs,
-    // the user stays on camera view (not stuck in thinking overlay)
+    // the user stays on camera view with a live preview (not a black screen).
     let accessToken: string | undefined
     try {
       const { data: { session: currentSession } } = await supabase.auth.getSession()
@@ -233,6 +258,8 @@ export default function EvaluatePage() {
       console.warn('[eval] getSession failed, proceeding without token:', e)
     }
 
+    // NOW stop camera — we're committed to proceeding
+    stopCamera()
     setPhase('thinking')
     abortRef.current = new AbortController()
 
@@ -424,7 +451,11 @@ export default function EvaluatePage() {
 
     console.log('[eval] saved entry id:', data?.id)
     // Optimistic local update (Realtime will also fire)
-    if (data) dispatch({ type: 'UPSERT_ENTRY', entry: data })
+    if (data) {
+      dispatch({ type: 'UPSERT_ENTRY', entry: data })
+      // Store for chat dialog (spec 018)
+      setChatEntry(data as Entry)
+    }
 
     haptic.confirm()
     const newSavedCount = savedCount + 1
@@ -512,6 +543,8 @@ export default function EvaluatePage() {
     setPackBoxId('')
     setPacking(false)
     setToastMsg('')
+    setChatOpen(false)
+    setChatEntry(null)
     setPhase(cameraBlocked ? 'text' : 'camera')
   }
 
@@ -676,6 +709,7 @@ export default function EvaluatePage() {
                   errorMsg={errorMsg}
                   usDestination={settings.usDestination}
                   settings={settings}
+                  photoBase64={capturedBase64}
                   matchedRule={ruleConflict ? matchedRule : null}
                   onConfirm={() => saveEntry(aiResult.final_decision, undefined, aiResult.action_phase)}
                   onAcceptRule={ruleConflict ? () => saveEntry(matchedRule.defaultDecision, `Rule: ${matchedRule.name}`, matchedRule.defaultPhase) : undefined}
@@ -684,6 +718,59 @@ export default function EvaluatePage() {
                     setOverridePhase(aiResult.action_phase ?? null)
                     setOverrideTags([])
                     setPhase('override')
+                  }}
+                  onChat={() => {
+                    // Build a pseudo-entry from AiResult for the chat
+                    const pseudoEntry: Entry = {
+                      id: 0,
+                      created_at: new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                      user_name: user?.user_metadata?.display_name ?? user?.email?.split('@')[0] ?? 'unknown',
+                      item_name: aiResult.item_name,
+                      item_name_it: aiResult.item_name_it,
+                      item_model: aiResult.item_model,
+                      final_decision: aiResult.final_decision,
+                      user_confirmed: false,
+                      override_reason: null,
+                      estimated_resale_value: aiResult.estimated_resale_value,
+                      replacement_cost: aiResult.replacement_cost,
+                      weight_lb: aiResult.weight_lb,
+                      volume_cuft: aiResult.volume_cuft,
+                      storage_cost_total: aiResult.storage_cost_total,
+                      ship_cost: aiResult.ship_cost,
+                      carry_bag_cost: null,
+                      net_cost_ship: aiResult.net_cost_ship,
+                      net_cost_storage: aiResult.net_cost_storage,
+                      recommendation_rationale: aiResult.recommendation_rationale,
+                      recommendation_rationale_it: aiResult.recommendation_rationale_it,
+                      confidence: aiResult.confidence ?? 'medium',
+                      rules_version: null,
+                      rules_snapshot: null,
+                      fragility: aiResult.fragility ?? null,
+                      survival_risk: aiResult.survival_risk,
+                      survival_risk_it: aiResult.survival_risk_it,
+                      packing_notes: aiResult.packing_notes,
+                      packing_notes_it: aiResult.packing_notes_it,
+                      oversized: aiResult.oversized ?? null,
+                      voltage_incompatible: aiResult.voltage_incompatible ?? null,
+                      photo_data: capturedBase64,
+                      bin_id: null,
+                      box_id: null,
+                      current_location_id: null,
+                      shipping_restriction: aiResult.shipping_restriction ?? null,
+                      shipping_restriction_note: aiResult.shipping_restriction_note ?? null,
+                      shipping_restriction_note_it: aiResult.shipping_restriction_note_it ?? null,
+                      action_phase: aiResult.action_phase ?? null,
+                      override_tags: null,
+                      italy_confirmed: false,
+                      acquisition_year: null,
+                      customs_eligible: null,
+                      customs_category: null,
+                      customs_notes: null,
+                      customs_exclude: null,
+                    }
+                    setChatEntry(pseudoEntry)
+                    setChatOpen(true)
                   }}
                   onCancel={handleCancel}
                 />
@@ -833,8 +920,32 @@ export default function EvaluatePage() {
                   </div>
                 )
               })()}
+
+              {/* Discuss with AI button (AC-1) — single item only */}
+              {savedEntryId && chatEntry && (
+                <button
+                  className="btn-link"
+                  style={{ marginTop: 14, width: '100%', textAlign: 'center' }}
+                  onClick={() => setChatOpen(true)}
+                >
+                  Discuss with AI · Discuti con AI
+                </button>
+              )}
             </div>
           </div>
+        )}
+
+        {/* Chat sheet (spec 018) */}
+        {chatOpen && chatEntry && (
+          <ChatSheet
+            entry={chatEntry}
+            settings={settings as unknown as Record<string, unknown>}
+            onClose={() => setChatOpen(false)}
+            onEntryUpdated={(updated) => {
+              dispatch({ type: 'UPSERT_ENTRY', entry: updated })
+              setChatEntry(updated)
+            }}
+          />
         )}
 
         <Nav />
@@ -876,10 +987,12 @@ function ResultCard({
   errorMsg,
   usDestination,
   settings,
+  photoBase64,
   matchedRule,
   onConfirm,
   onAcceptRule,
   onOverride,
+  onChat,
   onCancel,
 }: {
   result: AiResult
@@ -887,10 +1000,12 @@ function ResultCard({
   errorMsg: string
   usDestination: string
   settings: import('../lib/types').CernitaSettings
+  photoBase64: string | null
   matchedRule: DecisionRule | null
   onConfirm: () => void
   onAcceptRule?: () => void
   onOverride: () => void
+  onChat: () => void
   onCancel: () => void
 }) {
   const label = getDecisionLabel(result.final_decision as Decision, usDestination, result.action_phase)
@@ -1094,14 +1209,24 @@ function ResultCard({
           >
             {saving ? 'Saving… · Salvataggio…' : 'Confirm · Conferma'}
           </button>
-          <button
-            className="btn-secondary"
-            onClick={onOverride}
-            disabled={saving}
-            style={{ marginTop: 10, width: '100%' }}
-          >
-            Override decision · Cambia decisione
-          </button>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button
+              className="btn-secondary"
+              onClick={onOverride}
+              disabled={saving}
+              style={{ flex: 1 }}
+            >
+              Override · Cambia
+            </button>
+            <button
+              className="btn-secondary chat-btn-result"
+              onClick={onChat}
+              disabled={saving}
+              style={{ flex: 1 }}
+            >
+              Discuss · Discuti
+            </button>
+          </div>
           <button
             className="btn-link"
             onClick={onCancel}
