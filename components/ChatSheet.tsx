@@ -203,22 +203,25 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
         throw new Error(body?.error ?? `HTTP ${res.status}`)
       }
 
-      // Read SSE stream
+      // Read SSE stream with a line buffer to handle chunks split across reads
       const reader = res.body?.getReader()
       if (!reader) throw new Error('No response body')
 
       const decoder = new TextDecoder()
       let fullText = ''
       let finalMetadata: ChatMessageMetadata = {}
+      let lineBuffer = ''  // accumulates partial lines across chunks
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n')
+        lineBuffer += decoder.decode(value, { stream: true })
+        const parts = lineBuffer.split('\n')
+        // Last element may be incomplete — keep it in the buffer
+        lineBuffer = parts.pop() ?? ''
 
-        for (const line of lines) {
+        for (const line of parts) {
           if (!line.startsWith('data: ')) continue
           try {
             const data = JSON.parse(line.slice(6))
@@ -243,7 +246,11 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
                 setRateLimited(true)
                 setError('AI is busy — try again in a moment. · L\'AI è occupata.')
               } else {
-                setError(data.error)
+                // Show user-friendly message instead of raw API errors
+                const friendly = typeof data.error === 'string' && data.error.startsWith('Chat failed:')
+                  ? 'Chat error — try again. · Errore chat — riprova.'
+                  : data.error
+                setError(friendly)
               }
             } else if (data.type === 'done') {
               // Stream complete — strip the recommendation block from displayed text
