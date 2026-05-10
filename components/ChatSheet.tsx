@@ -306,12 +306,35 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
     if (!pendingRecommendation) return
     setAcceptingRec(true)
 
+    if (!isSaved) {
+      // Pre-save: update the entry locally without touching the database.
+      // The parent component (evaluate.tsx) will use these values when the
+      // user confirms and saves the item.
+      const updatedEntry: Entry = {
+        ...entry,
+        final_decision: pendingRecommendation.decision,
+        action_phase: pendingRecommendation.action_phase ?? null,
+        override_reason: `Updated via chat: ${pendingRecommendation.rationale ?? ''}`,
+        recommendation_rationale: pendingRecommendation.rationale ?? entry.recommendation_rationale,
+        recommendation_rationale_it: pendingRecommendation.rationale_it ?? entry.recommendation_rationale_it,
+        user_confirmed: true,
+      }
+      setAcceptingRec(false)
+      haptic.confirm()
+      setPendingRecommendation(null)
+      if (onEntryUpdated) onEntryUpdated(updatedEntry)
+      return
+    }
+
+    // Saved entry: update in the database
     const { data, error: err } = await supabase
       .from('cernita_entries')
       .update({
         final_decision: pendingRecommendation.decision,
         action_phase: pendingRecommendation.action_phase ?? null,
         override_reason: `Updated via chat: ${pendingRecommendation.rationale ?? ''}`,
+        recommendation_rationale: pendingRecommendation.rationale ?? entry.recommendation_rationale,
+        recommendation_rationale_it: pendingRecommendation.rationale_it ?? entry.recommendation_rationale_it,
         user_confirmed: true,
       })
       .eq('id', entry.id)
