@@ -737,6 +737,7 @@ function NewBoxOverlay({ boxes, locations, usDestination, onClose, onCreated }: 
       .from('cernita_boxes')
       .insert({
         box_number: boxNumber,
+        box_type: 'plastic',
         destination,
         current_location_id: locationId,
         storage_requirement: storageReq,
