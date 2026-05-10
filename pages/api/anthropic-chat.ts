@@ -7,6 +7,13 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 // Maximum messages per conversation (AC-10)
 const MAX_MESSAGES = 20
 
+// Extend Vercel function timeout — image+text requests to Anthropic can
+// take 15-30 seconds. Without this, Vercel's default (often 10s on Hobby)
+// kills the function before the AI responds.
+export const config = {
+  maxDuration: 60,
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).end()
 
@@ -73,8 +80,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   res.setHeader('Connection', 'keep-alive')
   res.setHeader('X-Accel-Buffering', 'no')
 
+  // Track whether the client disconnected so we can stop writing
+  let clientClosed = false
+  req.on('close', () => { clientClosed = true })
+
   try {
-    const stream = await anthropic.messages.stream({
+    // Use `for await` iteration instead of event listeners.
+    // Event listeners (`stream.on('text', ...)`) fire AFTER the handler
+    // function returns, which can cause Vercel to freeze the function
+    // before any SSE events are sent. `for await` keeps the handler
+    // actively running until the stream completes.
+    const stream = anthropic.messages.stream({
       model: settings?.aiModel || 'claude-sonnet-4-5',
       max_tokens: 2048,
       system: systemPrompt,
@@ -82,41 +98,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     let fullText = ''
-    let ended = false  // guard against double res.end()
 
-    stream.on('text', (text) => {
-      if (ended) return
-      fullText += text
-      res.write(`data: ${JSON.stringify({ type: 'text', text })}\n\n`)
-    })
+    for await (const event of stream) {
+      if (clientClosed) { stream.abort(); break }
 
-    stream.on('end', () => {
-      if (ended) return
-      ended = true
+      if (
+        event.type === 'content_block_delta' &&
+        'delta' in event &&
+        event.delta.type === 'text_delta'
+      ) {
+        const text = event.delta.text
+        fullText += text
+        res.write(`data: ${JSON.stringify({ type: 'text', text })}\n\n`)
+      }
+    }
+
+    if (!clientClosed) {
       // Check if the response contains an updated recommendation (AC-5)
       const recommendation = parseUpdatedRecommendation(fullText)
       if (recommendation) {
         res.write(`data: ${JSON.stringify({ type: 'recommendation', ...recommendation })}\n\n`)
       }
       res.write(`data: ${JSON.stringify({ type: 'done', full_text: fullText })}\n\n`)
-      res.end()
-    })
+    }
 
-    stream.on('error', (error) => {
-      if (ended) return
-      ended = true
-      console.error('Anthropic stream error:', error)
-      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Stream interrupted' })}\n\n`)
-      res.end()
-    })
-
-    // Handle client disconnect
-    req.on('close', () => {
-      ended = true
-      stream.abort()
-    })
+    res.end()
 
   } catch (err: unknown) {
+    if (clientClosed) { res.end(); return }
+
     const msg = err instanceof Error ? err.message : String(err)
     console.error('Anthropic chat API error:', msg)
 
