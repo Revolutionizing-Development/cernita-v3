@@ -9,6 +9,7 @@ import {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const MAX_MESSAGES = 20  // AC-10: 10 user + 10 AI
+const FETCH_TIMEOUT_MS = 45_000  // 45s — Vercel functions get up to 60s
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
 
   // ── Realtime subscription for other user's messages (AC-6) ─────────────
   useEffect(() => {
-    if (!isSaved) return  // No DB persistence for pre-save chats
+    if (!isSaved) return
     const channel = supabase
       .channel(`chat-${entry.id}`)
       .on('postgres_changes', {
@@ -87,7 +88,6 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
       }, (payload) => {
         const msg = payload.new as ChatMessage
         setMessages(prev => {
-          // Skip if we already have this message (from our own insert)
           if (prev.some(m => m.id === msg.id)) return prev
           return [...prev, {
             id: msg.id,
@@ -179,8 +179,12 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
       .filter(m => !m.streaming)
       .map(m => ({ role: m.role, content: m.content }))
 
-    // Call the streaming API (AC-4)
+    // Call the streaming API (AC-4) with a timeout
     abortRef.current = new AbortController()
+    const timeoutId = setTimeout(() => {
+      console.warn('[chat] fetch timeout after', FETCH_TIMEOUT_MS, 'ms')
+      abortRef.current?.abort()
+    }, FETCH_TIMEOUT_MS)
 
     try {
       const res = await fetch('/api/anthropic-chat', {
@@ -198,6 +202,8 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
         signal: abortRef.current.signal,
       })
 
+      clearTimeout(timeoutId)
+
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body?.error ?? `HTTP ${res.status}`)
@@ -210,10 +216,9 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
       const decoder = new TextDecoder()
       let fullText = ''
       let finalMetadata: ChatMessageMetadata = {}
-      let lineBuffer = ''  // accumulates partial lines across chunks
+      let lineBuffer = ''
       let receivedDone = false
 
-      // Process a single SSE line (shared by main loop + buffer flush)
       const processSSELine = async (line: string) => {
         if (!line.startsWith('data: ')) return
         const data = JSON.parse(line.slice(6))
@@ -238,14 +243,10 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
             setRateLimited(true)
             setError('AI is busy — try again in a moment. · L\'AI è occupata.')
           } else {
-            const friendly = typeof data.error === 'string' && data.error.startsWith('Chat failed:')
-              ? 'Chat error — try again. · Errore chat — riprova.'
-              : data.error
-            setError(friendly)
+            setError(data.error)
           }
         } else if (data.type === 'done') {
           receivedDone = true
-          // Stream complete — strip the recommendation block from displayed text
           const cleanText = fullText
             .replace(/\[UPDATED_RECOMMENDATION\][\s\S]*?\[\/UPDATED_RECOMMENDATION\]/, '')
             .trim()
@@ -256,7 +257,6 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
               : m
           ))
 
-          // Save AI message to Supabase (saved entries only)
           if (isSaved) {
             try {
               const { data: savedAiMsg } = await supabase
@@ -289,7 +289,6 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
 
         lineBuffer += decoder.decode(value, { stream: true })
         const parts = lineBuffer.split('\n')
-        // Last element may be incomplete — keep it in the buffer
         lineBuffer = parts.pop() ?? ''
 
         for (const line of parts) {
@@ -297,20 +296,17 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
         }
       }
 
-      // Flush TextDecoder and process any remaining data in the buffer.
-      // This catches the 'done' event if it arrived without a trailing newline.
-      lineBuffer += decoder.decode()  // flush decoder
+      // Flush TextDecoder and process remaining buffer
+      lineBuffer += decoder.decode()
       if (lineBuffer.trim()) {
         for (const line of lineBuffer.split('\n')) {
           try { await processSSELine(line) } catch { /* skip malformed */ }
         }
       }
 
-      // Failsafe: if the stream ended without a 'done' event (network
-      // glitch, Vercel timeout, etc.), finalize the message with whatever
-      // text we received so it doesn't stay stuck in streaming mode.
+      // Failsafe: finalize if stream ended without 'done' event
       if (!receivedDone && fullText) {
-        console.warn('[chat] Stream ended without done event — finalizing with received text')
+        console.warn('[chat] Stream ended without done event — finalizing')
         const cleanText = fullText
           .replace(/\[UPDATED_RECOMMENDATION\][\s\S]*?\[\/UPDATED_RECOMMENDATION\]/, '')
           .trim()
@@ -320,10 +316,18 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
             : m
         ))
       }
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        // User closed chat during stream
+
+      // Failsafe: if NO text was received at all, remove the empty bubble
+      if (!receivedDone && !fullText) {
+        console.warn('[chat] Stream ended with no data at all')
         setMessages(prev => prev.filter(m => m.id !== tempAiId))
+        setError('No response from AI — try again. · Nessuna risposta — riprova.')
+      }
+    } catch (err: unknown) {
+      clearTimeout(timeoutId)
+      if (err instanceof Error && err.name === 'AbortError') {
+        setMessages(prev => prev.filter(m => m.id !== tempAiId))
+        setError('Request timed out — try again. · Timeout — riprova.')
       } else {
         console.error('[chat] stream error:', err)
         setError('Failed to get response — try again. · Riprovare.')
@@ -340,9 +344,6 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
     setAcceptingRec(true)
 
     if (!isSaved) {
-      // Pre-save: update the entry locally without touching the database.
-      // The parent component (evaluate.tsx) will use these values when the
-      // user confirms and saves the item.
       const updatedEntry: Entry = {
         ...entry,
         final_decision: pendingRecommendation.decision,
@@ -359,7 +360,6 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
       return
     }
 
-    // Saved entry: update in the database
     const { data, error: err } = await supabase
       .from('cernita_entries')
       .update({
@@ -403,40 +403,39 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
   const currentBadgeClass = DECISION_BADGE_CLASS[entry.final_decision as Decision] ?? 'badge'
 
   return (
-    <div className="overlay-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="chat-sheet">
+    <div className="chat-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="chat-panel">
 
-        {/* Header (AC-9) */}
+        {/* Compact header */}
         <div className="chat-header">
           <div className="chat-header-left">
-            {entry.photo_data ? (
-              <img
-                src={`data:image/jpeg;base64,${entry.photo_data}`}
-                alt=""
-                className="chat-header-photo"
-              />
-            ) : (
-              <div className="chat-header-photo-empty">◻</div>
-            )}
             <div className="chat-header-info">
-              <p className="chat-header-name serif">{entry.item_name}</p>
+              <span className="chat-header-name serif">{entry.item_name}</span>
               <span className={`${currentBadgeClass} chat-header-badge`}>{currentLabel.en}</span>
             </div>
           </div>
           <button className="chat-close" onClick={onClose} aria-label="Close chat">✕</button>
         </div>
 
-        {/* Messages (AC-8) */}
+        {/* Error banner — always visible at top of messages area */}
+        {error && (
+          <div className="chat-error">
+            <p>{error}</p>
+            <button className="chat-error-dismiss" onClick={() => setError('')}>✕</button>
+          </div>
+        )}
+
+        {/* Messages */}
         <div className="chat-messages">
           {loadingHistory ? (
-            <div className="chat-loading">Loading conversation… · Caricamento…</div>
+            <div className="chat-loading">Loading… · Caricamento…</div>
           ) : messages.length === 0 ? (
             <div className="chat-empty">
               <p className="chat-empty-text">
-                Ask about this item, challenge the recommendation, or provide additional context.
+                Challenge the recommendation or provide context.
               </p>
               <p className="chat-empty-text-it italic ink-soft">
-                Chiedi informazioni, contesta la raccomandazione o fornisci contesto aggiuntivo.
+                Contesta la raccomandazione o fornisci contesto.
               </p>
             </div>
           ) : (
@@ -453,18 +452,16 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
             ))
           )}
 
-          {/* Streaming indicator */}
-          {sending && messages[messages.length - 1]?.streaming && (
+          {sending && messages[messages.length - 1]?.streaming && !messages[messages.length - 1]?.content && (
             <div className="chat-thinking">
               <span className="chat-thinking-ornament">✦</span>
-              <span className="chat-thinking-text">Thinking… · Pensando…</span>
+              <span className="chat-thinking-text">Thinking…</span>
             </div>
           )}
 
-          {/* Updated recommendation card (AC-5) */}
           {pendingRecommendation && (
             <div className="chat-recommendation-card">
-              <p className="chat-rec-label">Updated recommendation · Raccomandazione aggiornata</p>
+              <p className="chat-rec-label">Updated recommendation</p>
               <div className="chat-rec-decision">
                 <span className={`${DECISION_BADGE_CLASS[pendingRecommendation.decision] ?? 'badge'} chat-rec-badge`}>
                   {getDecisionLabel(pendingRecommendation.decision, usDestination, pendingRecommendation.action_phase).en}
@@ -473,23 +470,20 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
               {pendingRecommendation.rationale && (
                 <p className="chat-rec-rationale">{pendingRecommendation.rationale}</p>
               )}
-              {pendingRecommendation.rationale_it && (
-                <p className="chat-rec-rationale italic ink-soft">{pendingRecommendation.rationale_it}</p>
-              )}
               <div className="chat-rec-actions">
                 <button
                   className="btn-secondary"
                   onClick={handleDismissRecommendation}
                   disabled={acceptingRec}
                 >
-                  Dismiss · Ignora
+                  Dismiss
                 </button>
                 <button
                   className="btn-primary"
                   onClick={handleAcceptRecommendation}
                   disabled={acceptingRec}
                 >
-                  {acceptingRec ? 'Updating…' : 'Accept · Accetta'}
+                  {acceptingRec ? 'Updating…' : 'Accept'}
                 </button>
               </div>
             </div>
@@ -498,23 +492,12 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="chat-error">
-            <p>{error}</p>
-            <button className="chat-error-dismiss" onClick={() => setError('')}>✕</button>
-          </div>
-        )}
-
-        {/* Limit reached (AC-10) */}
         {atLimit && (
           <div className="chat-limit">
-            <p>Conversation limit reached (20 messages). Start a new evaluation to continue.</p>
-            <p className="italic ink-soft">Limite raggiunto. Inizia una nuova valutazione per continuare.</p>
+            <p>Conversation limit reached (20 messages).</p>
           </div>
         )}
 
-        {/* Input area (AC-8) */}
         {!atLimit && (
           <div className="chat-input-area">
             <textarea
@@ -523,7 +506,7 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about this item… · Chiedi…"
+              placeholder="Ask about this item…"
               rows={1}
               disabled={sending || rateLimited}
             />
