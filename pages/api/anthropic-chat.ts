@@ -82,13 +82,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     let fullText = ''
+    let ended = false  // guard against double res.end()
 
     stream.on('text', (text) => {
+      if (ended) return
       fullText += text
       res.write(`data: ${JSON.stringify({ type: 'text', text })}\n\n`)
     })
 
     stream.on('end', () => {
+      if (ended) return
+      ended = true
       // Check if the response contains an updated recommendation (AC-5)
       const recommendation = parseUpdatedRecommendation(fullText)
       if (recommendation) {
@@ -99,6 +103,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     stream.on('error', (error) => {
+      if (ended) return
+      ended = true
       console.error('Anthropic stream error:', error)
       res.write(`data: ${JSON.stringify({ type: 'error', error: 'Stream interrupted' })}\n\n`)
       res.end()
@@ -106,6 +112,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Handle client disconnect
     req.on('close', () => {
+      ended = true
       stream.abort()
     })
 
@@ -116,7 +123,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Check for rate limiting
     if (msg.includes('429') || msg.includes('rate')) {
       res.write(`data: ${JSON.stringify({ type: 'error', error: 'rate_limited' })}\n\n`)
-    } else if (msg.includes('Could not process image') || msg.includes('could not be read') || msg.includes('image')) {
+    } else if (msg.includes('Could not process image') || msg.includes('could not be read') || msg.includes('Invalid image')) {
       // Image processing error — likely corrupted or unsupported photo data
       res.write(`data: ${JSON.stringify({ type: 'error', error: 'Photo could not be processed. Try retaking the photo. · Foto non elaborabile. Riprova.' })}\n\n`)
     } else {
