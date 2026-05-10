@@ -211,6 +211,77 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
       let fullText = ''
       let finalMetadata: ChatMessageMetadata = {}
       let lineBuffer = ''  // accumulates partial lines across chunks
+      let receivedDone = false
+
+      // Process a single SSE line (shared by main loop + buffer flush)
+      const processSSELine = async (line: string) => {
+        if (!line.startsWith('data: ')) return
+        const data = JSON.parse(line.slice(6))
+
+        if (data.type === 'text') {
+          fullText += data.text
+          setMessages(prev => prev.map(m =>
+            m.id === tempAiId ? { ...m, content: fullText } : m
+          ))
+        } else if (data.type === 'recommendation') {
+          finalMetadata = {
+            updated_recommendation: {
+              decision: data.decision as Decision,
+              action_phase: data.action_phase as ActionPhase | null,
+              rationale: data.rationale,
+              rationale_it: data.rationale_it,
+            },
+          }
+          setPendingRecommendation(finalMetadata.updated_recommendation ?? null)
+        } else if (data.type === 'error') {
+          if (data.error === 'rate_limited') {
+            setRateLimited(true)
+            setError('AI is busy — try again in a moment. · L\'AI è occupata.')
+          } else {
+            const friendly = typeof data.error === 'string' && data.error.startsWith('Chat failed:')
+              ? 'Chat error — try again. · Errore chat — riprova.'
+              : data.error
+            setError(friendly)
+          }
+        } else if (data.type === 'done') {
+          receivedDone = true
+          // Stream complete — strip the recommendation block from displayed text
+          const cleanText = fullText
+            .replace(/\[UPDATED_RECOMMENDATION\][\s\S]*?\[\/UPDATED_RECOMMENDATION\]/, '')
+            .trim()
+
+          setMessages(prev => prev.map(m =>
+            m.id === tempAiId
+              ? { ...m, content: cleanText, streaming: false, metadata: finalMetadata }
+              : m
+          ))
+
+          // Save AI message to Supabase (saved entries only)
+          if (isSaved) {
+            try {
+              const { data: savedAiMsg } = await supabase
+                .from('cernita_chat_messages')
+                .insert({
+                  entry_id: entry.id,
+                  role: 'assistant',
+                  content: cleanText,
+                  metadata: finalMetadata,
+                  created_by: null,
+                })
+                .select()
+                .single()
+
+              if (savedAiMsg) {
+                setMessages(prev => prev.map(m =>
+                  m.id === tempAiId ? { ...m, id: savedAiMsg.id } : m
+                ))
+              }
+            } catch (e) {
+              console.warn('[chat] Failed to save AI message:', e)
+            }
+          }
+        }
+      }
 
       while (true) {
         const { done, value } = await reader.read()
@@ -222,77 +293,32 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
         lineBuffer = parts.pop() ?? ''
 
         for (const line of parts) {
-          if (!line.startsWith('data: ')) continue
-          try {
-            const data = JSON.parse(line.slice(6))
-
-            if (data.type === 'text') {
-              fullText += data.text
-              setMessages(prev => prev.map(m =>
-                m.id === tempAiId ? { ...m, content: fullText } : m
-              ))
-            } else if (data.type === 'recommendation') {
-              finalMetadata = {
-                updated_recommendation: {
-                  decision: data.decision as Decision,
-                  action_phase: data.action_phase as ActionPhase | null,
-                  rationale: data.rationale,
-                  rationale_it: data.rationale_it,
-                },
-              }
-              setPendingRecommendation(finalMetadata.updated_recommendation ?? null)
-            } else if (data.type === 'error') {
-              if (data.error === 'rate_limited') {
-                setRateLimited(true)
-                setError('AI is busy — try again in a moment. · L\'AI è occupata.')
-              } else {
-                // Show user-friendly message instead of raw API errors
-                const friendly = typeof data.error === 'string' && data.error.startsWith('Chat failed:')
-                  ? 'Chat error — try again. · Errore chat — riprova.'
-                  : data.error
-                setError(friendly)
-              }
-            } else if (data.type === 'done') {
-              // Stream complete — strip the recommendation block from displayed text
-              const cleanText = fullText
-                .replace(/\[UPDATED_RECOMMENDATION\][\s\S]*?\[\/UPDATED_RECOMMENDATION\]/, '')
-                .trim()
-
-              setMessages(prev => prev.map(m =>
-                m.id === tempAiId
-                  ? { ...m, content: cleanText, streaming: false, metadata: finalMetadata }
-                  : m
-              ))
-
-              // Save AI message to Supabase (saved entries only)
-              if (isSaved) {
-                try {
-                  const { data: savedAiMsg } = await supabase
-                    .from('cernita_chat_messages')
-                    .insert({
-                      entry_id: entry.id,
-                      role: 'assistant',
-                      content: cleanText,
-                      metadata: finalMetadata,
-                      created_by: null,
-                    })
-                    .select()
-                    .single()
-
-                  if (savedAiMsg) {
-                    setMessages(prev => prev.map(m =>
-                      m.id === tempAiId ? { ...m, id: savedAiMsg.id } : m
-                    ))
-                  }
-                } catch (e) {
-                  console.warn('[chat] Failed to save AI message:', e)
-                }
-              }
-            }
-          } catch {
-            // Skip malformed SSE lines
-          }
+          try { await processSSELine(line) } catch { /* skip malformed */ }
         }
+      }
+
+      // Flush TextDecoder and process any remaining data in the buffer.
+      // This catches the 'done' event if it arrived without a trailing newline.
+      lineBuffer += decoder.decode()  // flush decoder
+      if (lineBuffer.trim()) {
+        for (const line of lineBuffer.split('\n')) {
+          try { await processSSELine(line) } catch { /* skip malformed */ }
+        }
+      }
+
+      // Failsafe: if the stream ended without a 'done' event (network
+      // glitch, Vercel timeout, etc.), finalize the message with whatever
+      // text we received so it doesn't stay stuck in streaming mode.
+      if (!receivedDone && fullText) {
+        console.warn('[chat] Stream ended without done event — finalizing with received text')
+        const cleanText = fullText
+          .replace(/\[UPDATED_RECOMMENDATION\][\s\S]*?\[\/UPDATED_RECOMMENDATION\]/, '')
+          .trim()
+        setMessages(prev => prev.map(m =>
+          m.id === tempAiId
+            ? { ...m, content: cleanText, streaming: false, metadata: finalMetadata }
+            : m
+        ))
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
