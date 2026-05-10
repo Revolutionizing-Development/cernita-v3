@@ -116,8 +116,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Check for rate limiting
     if (msg.includes('429') || msg.includes('rate')) {
       res.write(`data: ${JSON.stringify({ type: 'error', error: 'rate_limited' })}\n\n`)
+    } else if (msg.includes('Could not process image') || msg.includes('could not be read') || msg.includes('image')) {
+      // Image processing error — likely corrupted or unsupported photo data
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Photo could not be processed. Try retaking the photo. · Foto non elaborabile. Riprova.' })}\n\n`)
     } else {
-      res.write(`data: ${JSON.stringify({ type: 'error', error: `Chat failed: ${msg}` })}\n\n`)
+      // Generic error — don't leak raw SDK errors to the user
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Chat unavailable — try again. · Chat non disponibile — riprova.' })}\n\n`)
     }
     res.end()
   }

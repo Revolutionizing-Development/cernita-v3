@@ -942,7 +942,20 @@ export default function EvaluatePage() {
             settings={settings as unknown as Record<string, unknown>}
             onClose={() => setChatOpen(false)}
             onEntryUpdated={(updated) => {
-              dispatch({ type: 'UPSERT_ENTRY', entry: updated })
+              if (updated.id === 0) {
+                // Pre-save: propagate the chat recommendation back into the
+                // AI result so "Confirm" saves the updated decision, not the
+                // original one. Don't dispatch to global state (no DB row yet).
+                setAiResults(prev => prev.map((r, i) => i === currentItemIndex ? {
+                  ...r,
+                  final_decision: updated.final_decision,
+                  action_phase: updated.action_phase as AiResult['action_phase'],
+                  recommendation_rationale: updated.recommendation_rationale,
+                  recommendation_rationale_it: updated.recommendation_rationale_it,
+                } : r))
+              } else {
+                dispatch({ type: 'UPSERT_ENTRY', entry: updated })
+              }
               setChatEntry(updated)
             }}
           />

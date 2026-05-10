@@ -203,22 +203,25 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
         throw new Error(body?.error ?? `HTTP ${res.status}`)
       }
 
-      // Read SSE stream
+      // Read SSE stream with a line buffer to handle chunks split across reads
       const reader = res.body?.getReader()
       if (!reader) throw new Error('No response body')
 
       const decoder = new TextDecoder()
       let fullText = ''
       let finalMetadata: ChatMessageMetadata = {}
+      let lineBuffer = ''  // accumulates partial lines across chunks
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n')
+        lineBuffer += decoder.decode(value, { stream: true })
+        const parts = lineBuffer.split('\n')
+        // Last element may be incomplete — keep it in the buffer
+        lineBuffer = parts.pop() ?? ''
 
-        for (const line of lines) {
+        for (const line of parts) {
           if (!line.startsWith('data: ')) continue
           try {
             const data = JSON.parse(line.slice(6))
@@ -243,7 +246,11 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
                 setRateLimited(true)
                 setError('AI is busy — try again in a moment. · L\'AI è occupata.')
               } else {
-                setError(data.error)
+                // Show user-friendly message instead of raw API errors
+                const friendly = typeof data.error === 'string' && data.error.startsWith('Chat failed:')
+                  ? 'Chat error — try again. · Errore chat — riprova.'
+                  : data.error
+                setError(friendly)
               }
             } else if (data.type === 'done') {
               // Stream complete — strip the recommendation block from displayed text
@@ -306,12 +313,35 @@ export default function ChatSheet({ entry, settings, onClose, onEntryUpdated }: 
     if (!pendingRecommendation) return
     setAcceptingRec(true)
 
+    if (!isSaved) {
+      // Pre-save: update the entry locally without touching the database.
+      // The parent component (evaluate.tsx) will use these values when the
+      // user confirms and saves the item.
+      const updatedEntry: Entry = {
+        ...entry,
+        final_decision: pendingRecommendation.decision,
+        action_phase: pendingRecommendation.action_phase ?? null,
+        override_reason: `Updated via chat: ${pendingRecommendation.rationale ?? ''}`,
+        recommendation_rationale: pendingRecommendation.rationale ?? entry.recommendation_rationale,
+        recommendation_rationale_it: pendingRecommendation.rationale_it ?? entry.recommendation_rationale_it,
+        user_confirmed: true,
+      }
+      setAcceptingRec(false)
+      haptic.confirm()
+      setPendingRecommendation(null)
+      if (onEntryUpdated) onEntryUpdated(updatedEntry)
+      return
+    }
+
+    // Saved entry: update in the database
     const { data, error: err } = await supabase
       .from('cernita_entries')
       .update({
         final_decision: pendingRecommendation.decision,
         action_phase: pendingRecommendation.action_phase ?? null,
         override_reason: `Updated via chat: ${pendingRecommendation.rationale ?? ''}`,
+        recommendation_rationale: pendingRecommendation.rationale ?? entry.recommendation_rationale,
+        recommendation_rationale_it: pendingRecommendation.rationale_it ?? entry.recommendation_rationale_it,
         user_confirmed: true,
       })
       .eq('id', entry.id)
