@@ -208,12 +208,25 @@ async function loadAll(dispatch: React.Dispatch<Action>) {
   dispatch({ type: 'SET_SYNC', status: 'syncing' })
 
   try {
-    const [entriesRes, boxesRes, locationsRes, tripsRes] = await Promise.all([
-      supabase.from('cernita_entries').select('*').order('created_at', { ascending: false }),
-      supabase.from('cernita_boxes').select('*').order('created_at'),
-      supabase.from('cernita_locations').select('*').order('sort_order'),
-      supabase.from('cernita_trips').select('*').order('departure_date', { ascending: true }),
+    // Race the data load against a 10-second timeout so a paused/unreachable
+    // Supabase project doesn't leave the UI stuck on "Syncing…" forever.
+    const result = await Promise.race([
+      Promise.all([
+        supabase.from('cernita_entries').select('*').order('created_at', { ascending: false }),
+        supabase.from('cernita_boxes').select('*').order('created_at'),
+        supabase.from('cernita_locations').select('*').order('sort_order'),
+        supabase.from('cernita_trips').select('*').order('departure_date', { ascending: true }),
+      ]),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 10_000)),
     ])
+
+    if (result === null) {
+      console.error('Supabase data load timed out after 10s — project may be paused')
+      dispatch({ type: 'SET_SYNC', status: 'offline' })
+      return
+    }
+
+    const [entriesRes, boxesRes, locationsRes, tripsRes] = result
 
     if (!entriesRes.error && entriesRes.data)
       dispatch({ type: 'SET_LOG', entries: entriesRes.data as Entry[] })
